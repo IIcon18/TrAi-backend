@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.models.workout_test import WorkoutTest
+from app.schemas.workout import WorkoutTestCreate
 
 router = APIRouter()
 
@@ -9,5 +9,5 @@ async def get_workouts():
     return {"message": "Тренировки"}
 
 @router.post("/test")
-async def post_test(test: WorkoutTest):
+async def post_test(test: WorkoutTestCreate):
     return test.dict()

@@ -1,0 +1,36 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:15
+    container_name: trai_postgres
+    environment:
+      POSTGRES_USER: trai_user
+      POSTGRES_PASSWORD: trai_password
+      POSTGRES_DB: trai_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trai_user -d trai_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    container_name: trai_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://trai_user:trai_password@db:5432/trai_db
+      SECRET_KEY: SECRET_KEY_FOR_TRAI
+
+volumes:
+  postgres_data:

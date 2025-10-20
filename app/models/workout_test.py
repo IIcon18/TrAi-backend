@@ -1,16 +1,19 @@
-from pydantic import BaseModel, conint, Field, validator
-from typing import List
+from sqlalchemy import Column, Integer, ForeignKey
+from sqlalchemy.orm import relationship
+from app.core.base import Base
 
-class WorkoutTest(BaseModel):
-    answers: List[conint(ge=1, le=10)] = Field(
-        ...,
-        title="Ответы на вопросы",
-        description="Список из 8 чисел (в диапазоне от 1 до 10), отвечающих на вопросы теста",
-        examples=[5, 3, 5, 7, 3, 5, 8, 10]
-    )
+class WorkoutTest(Base):
+    __tablename__ = "workout_tests"
 
-    @validator("answers")
-    def check_length(cls, v):
-        if len(v) != 8:
-            raise ValueError("Все 8 вопросов должны быть заполнены")
-        return v
+    id = Column(Integer, primary_key=True)
+    workout_id = Column(Integer, ForeignKey("workouts.id"), nullable=False, index=True)
+    q1 = Column(Integer, nullable=False)
+    q2 = Column(Integer, nullable=False)
+    q3 = Column(Integer, nullable=False)
+    q4 = Column(Integer, nullable=False)
+    q5 = Column(Integer, nullable=False)
+    q6 = Column(Integer, nullable=False)
+    q7 = Column(Integer, nullable=False)
+    q8 = Column(Integer, nullable=False)
+
+    workout = relationship("Workout", back_populates="tests")

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.models.goal import GoalUpdate
+from app.schemas.goal import GoalUpdate
 
 router = APIRouter()
 

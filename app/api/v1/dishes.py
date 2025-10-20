@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.models.dish import Dish, DishGrams
+from app.schemas.dish import Dish, DishGrams
 
 router = APIRouter()
 
