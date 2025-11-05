@@ -32,7 +32,7 @@ class QuickStats(BaseModel):
     total_weight_lifted: float
     recovery_score: float
     goal_progress: float
-    weight_change: float  # -8кг для похудения
+    weight_change: float
 
 class QuickAction(BaseModel):
     name: str
@@ -42,11 +42,11 @@ class QuickAction(BaseModel):
 class DashboardResponse(BaseModel):
     user_greeting: str
     progress_fact: str
-    energy_chart: List[EnergyChartData]  # График состояния и энергии
+    energy_chart: List[EnergyChartData]
     weekly_progress: WeeklyProgress
     nutrition_plan: NutritionPlan
     quick_stats: QuickStats
-    quick_actions: List[QuickAction]  # Быстрые действия
+    quick_actions: List[QuickAction]
     ai_recommendations: List[AIRecommendationRead]
 
     class Config:

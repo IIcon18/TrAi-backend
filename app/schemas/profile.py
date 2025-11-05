@@ -6,10 +6,10 @@ from app.schemas.goal import GoalResponse
 class ProfileBase(BaseModel):
     email: EmailStr
     age: int
-    lifestyle: str  # low, medium, high
+    lifestyle: str
     height: int
     weight: float
-    level: Optional[str] = None  # beginner, amateur, professional
+    level: Optional[str] = None
     weekly_training_goal: Optional[int] = None
     preferred_training_days: Optional[List[str]] = None
 

@@ -7,7 +7,7 @@ class Meal(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    type = Column(String, nullable=False)       # breakfast/lunch/dinner/snack (можно сделать Enum позже)
+    type = Column(String, nullable=False)
     eaten_at = Column(DateTime, nullable=False)
 
     user = relationship("User", back_populates="meals")

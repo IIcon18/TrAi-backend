@@ -175,9 +175,9 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
             initial, current, target = user_data
             weight_change = round(initial - current, 1)
 
-            if target > initial:  # Набор массы
+            if target > initial:
                 goal_progress = round(((current - initial) / (target - initial)) * 100, 1)
-            elif target < initial:  # Похудение
+            elif target < initial:
                 goal_progress = round(((initial - current) / (initial - target)) * 100, 1)
 
         return QuickStats(

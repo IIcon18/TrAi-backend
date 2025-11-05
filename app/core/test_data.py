@@ -5,12 +5,10 @@ from datetime import datetime
 
 
 async def create_test_data(session: AsyncSession):
-    """Создание тестовых данных"""
 
-    # Создаем тестового пользователя
     test_user = User(
         email="test@example.com",
-        password="hashed_password",  # В реальном приложении хешируй пароль!
+        password="hashed_password",
         age=25,
         lifestyle="medium",
         height=180,

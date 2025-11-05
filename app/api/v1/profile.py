@@ -19,18 +19,15 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 
 @router.get("/", response_model=ProfileResponse)
 async def get_profile(db: AsyncSession = Depends(get_db)):
-    """Получить профиль пользователя"""
     try:
-        # Получаем первого пользователя (временно)
         user_result = await db.execute(
-            select(User).where(User.id == 1)  # TODO: Заменить на текущего пользователя
+            select(User).where(User.id == 1)
         )
         user = user_result.scalar_one_or_none()
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Получаем текущую цель пользователя
         current_goal = None
         if user.current_goal_id:
             goal_result = await db.execute(
@@ -68,9 +65,7 @@ async def update_profile(
         profile_update: ProfileUpdate,
         db: AsyncSession = Depends(get_db)
 ):
-    """Обновить профиль пользователя"""
     try:
-        # Получаем пользователя
         user_result = await db.execute(
             select(User).where(User.id == 1)  # TODO: Заменить на текущего пользователя
         )
@@ -79,7 +74,6 @@ async def update_profile(
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Обновляем только переданные поля
         update_data = profile_update.dict(exclude_unset=True)
 
         for field, value in update_data.items():
@@ -88,7 +82,6 @@ async def update_profile(
         await db.commit()
         await db.refresh(user)
 
-        # Получаем обновленную цель
         current_goal = None
         if user.current_goal_id:
             goal_result = await db.execute(
@@ -127,32 +120,25 @@ async def upload_avatar(
         file: UploadFile = File(...),
         db: AsyncSession = Depends(get_db)
 ):
-    """Загрузить аватарку пользователя"""
     try:
-        # Получаем пользователя
         user_result = await db.execute(select(User).where(User.id == 1))
         user = user_result.scalar_one_or_none()
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Проверяем тип файла
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="Можно загружать только изображения")
 
-        # Создаем папку для аватарок если нет
         os.makedirs("static/avatars", exist_ok=True)
 
-        # Генерируем имя файла
         file_extension = file.filename.split('.')[-1]
         filename = f"user_{user.id}.{file_extension}"
         file_path = f"static/avatars/{filename}"
 
-        # Сохраняем файл
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Обновляем путь к аватарке в БД
         user.avatar = f"/{file_path}"
         await db.commit()
 
@@ -171,9 +157,7 @@ async def connect_telegram(
         telegram_data: TelegramConnectRequest,
         db: AsyncSession = Depends(get_db)
 ):
-    """Подключить Telegram аккаунт"""
     try:
-        # Получаем пользователя
         user_result = await db.execute(
             select(User).where(User.id == 1)
         )
@@ -182,7 +166,6 @@ async def connect_telegram(
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Обновляем данные Telegram
         user.telegram_connected = True
         user.telegram_chat_id = telegram_data.telegram_chat_id
 
@@ -201,9 +184,7 @@ async def connect_telegram(
 
 @router.post("/disconnect-telegram", response_model=TelegramConnectResponse)
 async def disconnect_telegram(db: AsyncSession = Depends(get_db)):
-    """Отключить Telegram аккаунт"""
     try:
-        # Получаем пользователя
         user_result = await db.execute(
             select(User).where(User.id == 1)
         )
@@ -212,7 +193,6 @@ async def disconnect_telegram(db: AsyncSession = Depends(get_db)):
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Отключаем Telegram
         user.telegram_connected = False
         user.telegram_chat_id = None
 
@@ -230,9 +210,7 @@ async def disconnect_telegram(db: AsyncSession = Depends(get_db)):
 
 @router.get("/ai-facts", response_model=List[AIFact])
 async def get_ai_facts(db: AsyncSession = Depends(get_db)):
-    """Получить интересные факты от AI"""
     try:
-        # Получаем AI рекомендации для пользователя
         facts_result = await db.execute(
             select(AIRecommendation)
             .where(AIRecommendation.user_id == 1)

@@ -2,7 +2,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from app.core.config import settings
 from app.core.base import Base
 
-# Импортируем ВСЕ модели напрямую
 from app.models.user import User
 from app.models.goal import Goal, UserGoal
 from app.models.workout import Workout, Exercise
@@ -31,20 +30,16 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def init_database():
-    """Инициализация базы данных"""
     async with engine.begin() as conn:
-        # Удаляем все таблицы если RESET_DATABASE=true
         if settings.RESET_DATABASE:
             print("🧹 RESET_DATABASE=true - пересоздаем БД")
             await conn.run_sync(Base.metadata.drop_all)
 
-        # Создаем все таблицы
         await conn.run_sync(Base.metadata.create_all)
         print("✅ Таблицы БД созданы/проверены")
 
 
 async def get_db():
-    """Зависимость для получения сессии БД"""
     async with AsyncSessionLocal() as session:
         try:
             yield session

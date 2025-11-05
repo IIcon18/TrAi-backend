@@ -3,15 +3,12 @@ from app.models.user import User
 
 
 class NutritionCalculator:
-    """Сервис для расчета нутриентов и калорий"""
-    # Коэффициенты активности
     ACTIVITY_MULTIPLIERS = {
         "low": 1.2,
         "medium": 1.55,
         "high": 1.9
     }
 
-    # Распределение БЖУ по целям
     MACRO_RATIOS = {
         "weight_loss": {"protein": 0.35, "carbs": 0.40, "fat": 0.25},
         "maintenance": {"protein": 0.30, "carbs": 0.40, "fat": 0.30},
