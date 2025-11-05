@@ -1,50 +1,41 @@
 from pydantic import BaseModel
+from typing import List
 from enum import Enum
-from typing import Optional
 
-
-class GoalTypeEnum(str, Enum):
+class GoalType(str, Enum):
     weight_loss = "weight_loss"
     muscle_gain = "muscle_gain"
     maintenance = "maintenance"
-    endurance = "endurance"
 
+class Level(str, Enum):
+    beginner = "beginner"
+    amateur = "amateur"
+    professional = "professional"
 
-class GoalBase(BaseModel):
-    name: str
-    type: GoalTypeEnum
+# Шаг 1: Выбор цели и уровня
+class GoalStep1(BaseModel):
+    goal_type: GoalType
+    level: Level
+    training_days_per_week: int
 
+# Шаг 2: Выбор дней тренировок
+class GoalStep2(BaseModel):
+    training_days: List[str]  # ["monday", "tuesday", ...]
 
-class GoalCreate(GoalBase):
-    pass
-
-
+# Полная цель
 class GoalUpdate(BaseModel):
-    name: Optional[str] = None
-    type: Optional[GoalTypeEnum] = None
+    goal_type: GoalType
+    level: Level
+    training_days_per_week: int
+    training_days: List[str]
 
-
-class GoalResponse(GoalBase):
+class GoalResponse(BaseModel):
     id: int
-
-    class Config:
-        from_attributes = True
-
-
-class UserGoalBase(BaseModel):
-    target_weight: Optional[float] = None
-    target_calories: Optional[float] = None
-
-
-class UserGoalCreate(UserGoalBase):
-    user_id: int
-    goal_id: int
-
-
-class UserGoalResponse(UserGoalBase):
-    id: int
-    user_id: int
-    goal_id: int
+    goal_type: GoalType
+    level: Level
+    training_days_per_week: int
+    training_days: List[str]
+    message: str = "Цель успешно обновлена"
 
     class Config:
         from_attributes = True

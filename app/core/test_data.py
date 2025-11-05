@@ -1,6 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
-from app.models.goal import Goal, UserGoal
 from datetime import datetime
 
 
