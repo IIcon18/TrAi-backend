@@ -24,7 +24,9 @@ class User(Base):
     lifestyle = Column(Enum(LifestyleEnum), nullable=False)
     height = Column(Integer, nullable=False)
     weight = Column(Float, nullable=False)
+    initial_weight = Column(Float, nullable=True)
     target_weight = Column(Float, nullable=True)
+    daily_calorie_deficit = Column(Integer, nullable=True)
     avatar = Column(String, nullable=True)
     telegram_connected = Column(Boolean, default=False)
     telegram_chat_id = Column(String, nullable=True)
@@ -35,11 +37,11 @@ class User(Base):
     ai_calorie_plan = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relationships
+    current_goal_id = Column(Integer, ForeignKey("goals.id"), nullable=True)
+
     current_goal = relationship("Goal", foreign_keys=[current_goal_id])
-    goals = relationship("UserGoal", back_populates="user", cascade="all, delete")
+    user_goals = relationship("UserGoal", back_populates="user", cascade="all, delete")
     workouts = relationship("Workout", back_populates="user", cascade="all, delete")
     meals = relationship("Meal", back_populates="user", cascade="all, delete")
     progress = relationship("Progress", back_populates="user", cascade="all, delete")
-    workout_tests = relationship("PostWorkoutTest", back_populates="user", cascade="all, delete")
     ai_recommendations = relationship("AIRecommendation", back_populates="user", cascade="all, delete")

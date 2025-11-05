@@ -1,36 +1,50 @@
 from pydantic import BaseModel
-from typing import Literal
+from enum import Enum
+from typing import Optional
 
-class GoalCreate(BaseModel):
+
+class GoalTypeEnum(str, Enum):
+    weight_loss = "weight_loss"
+    muscle_gain = "muscle_gain"
+    maintenance = "maintenance"
+    endurance = "endurance"
+
+
+class GoalBase(BaseModel):
     name: str
+    type: GoalTypeEnum
 
 
-class GoalRead(BaseModel):
-    id: int
-    name: str
-
-    class Config:
-        from_attributes = True
+class GoalCreate(GoalBase):
+    pass
 
 
 class GoalUpdate(BaseModel):
-    name: Literal["weight_loss", "muscle_gain", "maintain"]  # только эти 3 варианта
+    name: Optional[str] = None
+    type: Optional[GoalTypeEnum] = None
+
+
+class GoalResponse(GoalBase):
+    id: int
 
     class Config:
         from_attributes = True
 
 
-class UserGoalCreate(BaseModel):
+class UserGoalBase(BaseModel):
+    target_weight: Optional[float] = None
+    target_calories: Optional[float] = None
+
+
+class UserGoalCreate(UserGoalBase):
+    user_id: int
     goal_id: int
-    target_weight: float
-    target_calories: float
 
 
-class UserGoalRead(BaseModel):
+class UserGoalResponse(UserGoalBase):
     id: int
+    user_id: int
     goal_id: int
-    target_weight: float
-    target_calories: float
 
     class Config:
         from_attributes = True

@@ -1,54 +1,52 @@
-from app.core.db import engine, Base
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from app.core.config import settings
-from sqlalchemy import text
+from app.core.base import Base
 
-from app.models import (
-    User, Goal, UserGoal, Workout, Exercise,
-    Meal, Dish, Progress, PostWorkoutTest, AIRecommendation
+# Импортируем ВСЕ модели напрямую
+from app.models.user import User
+from app.models.goal import Goal, UserGoal
+from app.models.workout import Workout, Exercise
+from app.models.meal import Meal, Dish
+from app.models.progress import Progress
+from app.models.post_workout_test import PostWorkoutTest
+from app.models.ai_recommendation import AIRecommendation
+
+DATABASE_URL = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+print("ASYNC DATABASE_URL =", DATABASE_URL)
+
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=True,
+    future=True,
+    pool_pre_ping=True
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False
 )
 
 
 async def init_database():
-    print("🔄 Инициализация БД...")
-
+    """Инициализация базы данных"""
     async with engine.begin() as conn:
-        #проверяем флаг по бд
+        # Удаляем все таблицы если RESET_DATABASE=true
         if settings.RESET_DATABASE:
             print("🧹 RESET_DATABASE=true - пересоздаем БД")
             await conn.run_sync(Base.metadata.drop_all)
-            print("✅ Старые таблицы удалены")
-
-        #Проверка созданных таблицы
-        print(f"Созданные таблицы: {list(Base.metadata.tables.keys())}")
-
-        if not Base.metadata.tables:
-            print("Созданных таблиц нету!")
-            return
-
-        #проверяем таблицы
-        def check_tables_sync(conn_sync):
-            from sqlalchemy import inspect
-            inspector = inspect(conn_sync)
-            existing_tables = inspector.get_table_names()
-            print(f"Существующие таблицы ДО создания: {existing_tables}")
-            return existing_tables
-
-        existing_tables = await conn.run_sync(check_tables_sync)
 
         # Создаем все таблицы
         await conn.run_sync(Base.metadata.create_all)
         print("✅ Таблицы БД созданы/проверены")
 
-        # Проверяем таблицы ПОСЛЕ создания
-        def check_tables_after_sync(conn_sync):
-            from sqlalchemy import inspect
-            inspector = inspect(conn_sync)
-            new_tables = inspector.get_table_names()
-            print(f"📊 Существующие таблицы ПОСЛЕ создания: {new_tables}")
-            return new_tables
 
-        new_tables = await conn.run_sync(check_tables_after_sync)
-
-        #Подключение
-        result = await conn.execute(text("SELECT 1"))
-        print("✅ База данных успешно подключена")
+async def get_db():
+    """Зависимость для получения сессии БД"""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

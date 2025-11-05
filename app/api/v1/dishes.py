@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.schemas.dish import Dish, DishGrams
 
-router = APIRouter()
+router = APIRouter(prefix="/dishes", tags=["dish"])
 
 @router.get("/meals")
 async def get_meal_types():

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.schemas.auth import UserLogin, UserRegister, AuthResponse
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=AuthResponse)
 async def login(user: UserLogin):

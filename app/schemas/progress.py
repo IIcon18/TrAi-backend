@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
-
 class ProgressCreate(BaseModel):
     weight: float
     notes: Optional[str]
@@ -11,7 +10,6 @@ class ProgressCreate(BaseModel):
     recovery_score: Optional[float]
     completed_workouts: Optional[int]
     recorded_at: datetime
-
 
 class ProgressRead(BaseModel):
     id: int
@@ -22,6 +20,18 @@ class ProgressRead(BaseModel):
     recovery_score: Optional[float]
     completed_workouts: Optional[int]
     recorded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ProgressUpdate(BaseModel):
+    weight: Optional[float] = None
+    notes: Optional[str] = None
+    photo: Optional[str] = None
+    total_lifted_weight: Optional[float] = None
+    recovery_score: Optional[float] = None
+    completed_workouts: Optional[int] = None
+    recorded_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
