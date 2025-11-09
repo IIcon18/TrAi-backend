@@ -8,7 +8,8 @@ from app.core.db import get_db
 from app.schemas.workout import (
     WorkoutCreate, WorkoutResponse, AIWorkoutRequest,
     CompleteWorkoutRequest, WorkoutPageResponse, CalendarEvent,
-    QuickAction, ExerciseCompletion
+    QuickAction, WorkoutCompleteResponse,
+    PostWorkoutTestCreate
 )
 from app.models.workout import Workout, Exercise
 from app.models.post_workout_test import PostWorkoutTest
@@ -230,12 +231,10 @@ async def generate_ai_workout(
         }
     }
 
-    # ИСПРАВЛЕНИЕ: убрать .value
     template = workout_templates.get(ai_request.muscle_group)
     if not template:
         raise HTTPException(status_code=400, detail="Неизвестная группа мышц")
 
-    # Удаляем старые тренировки
     today = datetime.utcnow().date()
 
     workouts_result = await db.execute(
@@ -383,7 +382,7 @@ async def create_custom_workout(
     )
 
 
-@router.post("/{workout_id}/complete", response_model=WorkoutResponse)
+@router.post("/{workout_id}/complete", response_model=WorkoutCompleteResponse)
 async def complete_workout(
         workout_id: int,
         complete_data: CompleteWorkoutRequest,
@@ -427,7 +426,7 @@ async def complete_workout(
     )
     exercises = exercises_result.scalars().all()
 
-    return WorkoutResponse(
+    workout_response = WorkoutResponse(
         id=workout.id,
         name=workout.name,
         muscle_group=workout.muscle_group,
@@ -446,11 +445,16 @@ async def complete_workout(
         } for ex in exercises]
     )
 
+    return WorkoutCompleteResponse(
+        **workout_response.dict(),
+        show_post_test=complete_data.take_post_test
+    )
+
 
 @router.post("/{workout_id}/post-workout-test")
 async def create_post_workout_test(
         workout_id: int,
-        test_data: dict,
+        test_data: PostWorkoutTestCreate,
         db: AsyncSession = Depends(get_db)
 ):
     user_id = 1
@@ -466,25 +470,58 @@ async def create_post_workout_test(
     if not workout:
         raise HTTPException(status_code=404, detail="Тренировка не найдена")
 
+    # РАСЧЕТ ОБЩЕГО РЕЗУЛЬТАТА ПО 7 ВОПРОСАМ
+    positive_score = (test_data.mood + test_data.energy_level + test_data.performance) / 3
+    negative_score = (test_data.tiredness + test_data.pain_discomfort) / 2
+    rest_time_score = 10 - min(abs(test_data.avg_rest_time - 90) / 15, 5)
+    completion_bonus = 2 if test_data.completed_exercises else 0
+
+    overall_score = (
+            positive_score * 0.4 +
+            (10 - negative_score) * 0.3 +
+            rest_time_score * 0.2 +
+            completion_bonus * 0.1
+    )
+
+    final_score = max(1, min(10, round(overall_score, 1)))
+
     post_test = PostWorkoutTest(
         user_id=user_id,
         workout_id=workout_id,
-        tiredness=test_data.get("tiredness", 5),
-        mood=test_data.get("mood", 5),
-        energy_level=test_data.get("energy_level", 5),
-        avg_rest_time=test_data.get("avg_rest_time", 60),
-        completed_exercises=test_data.get("completed_exercises", True),
-        pain_discomfort=test_data.get("pain_discomfort", 0),
-        performance=test_data.get("performance", 5),
-        weight_per_set=test_data.get("weight_per_set", 0),
-        recovery_score=test_data.get("recovery_score", 0)
+        tiredness=test_data.tiredness,
+        mood=test_data.mood,
+        energy_level=test_data.energy_level,
+        avg_rest_time=test_data.avg_rest_time,
+        completed_exercises=test_data.completed_exercises,
+        pain_discomfort=test_data.pain_discomfort,
+        performance=test_data.performance,
+        weight_per_set=0,
+        recovery_score=final_score
     )
 
     db.add(post_test)
     await db.commit()
     await db.refresh(post_test)
 
-    return {"message": "Послетренировочный тест сохранен", "test_id": post_test.id}
+    return {
+        "message": "Послетренировочный тест сохранен",
+        "test_id": post_test.id,
+        "overall_score": final_score,
+        "interpretation": get_interpretation(final_score)
+    }
+
+
+def get_interpretation(score: float) -> str:
+    if score >= 9:
+        return "Отличная тренировка! 💪"
+    elif score >= 7:
+        return "Хорошая тренировка! 👍"
+    elif score >= 5:
+        return "Нормальная тренировка 👌"
+    elif score >= 3:
+        return "Сложная тренировка 😓"
+    else:
+        return "Очень тяжелая тренировка 🆘"
 
 
 @router.get("/statistics")

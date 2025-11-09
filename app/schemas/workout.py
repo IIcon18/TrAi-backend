@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from datetime import datetime
 from enum import Enum
@@ -38,6 +38,16 @@ class ExerciseCompletion(BaseModel):
 
 class CompleteWorkoutRequest(BaseModel):
     exercises: List[ExerciseCompletion]
+    take_post_test: bool = False
+
+class PostWorkoutTestCreate(BaseModel):
+    tiredness: int = Field(ge=1, le=10, description="How tired do you feel after this workout? (1-10)")
+    mood: int = Field(ge=1, le=10, description="How was your overall mood? (1-10)")
+    energy_level: int = Field(ge=1, le=10, description="How was your energy level during the session? (1-10)")
+    avg_rest_time: int = Field(ge=30, le=300, description="Average rest time between sets in seconds (30-300)")
+    completed_exercises: bool = Field(description="Did you complete all planned exercises?")
+    pain_discomfort: int = Field(ge=0, le=10, description="Any pain or discomfort during the workout? (0-10)")
+    performance: int = Field(ge=1, le=10, description="How would you rate your performance today? (1-10)")
 
 class WorkoutResponse(BaseModel):
     id: int
@@ -51,6 +61,9 @@ class WorkoutResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class WorkoutCompleteResponse(WorkoutResponse):
+    show_post_test: bool = False
 
 class CalendarEvent(BaseModel):
     date: str
