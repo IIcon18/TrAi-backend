@@ -18,6 +18,7 @@ router = APIRouter(prefix="/workouts", tags=["workouts"])
 
 
 def get_quick_actions() -> List[QuickAction]:
+    """Получить список быстрых действий для страницы тренировок"""
     return [
         QuickAction(
             name="Открыть статистику",
@@ -33,6 +34,7 @@ def get_quick_actions() -> List[QuickAction]:
 
 
 async def get_calendar_events(db: AsyncSession, user_id: int) -> List[CalendarEvent]:
+    """Получить события календаря тренировок на 7 дней вперед"""
     start_date = datetime.utcnow().date()
     calendar_events = []
 
@@ -40,6 +42,7 @@ async def get_calendar_events(db: AsyncSession, user_id: int) -> List[CalendarEv
         current_date = start_date + timedelta(days=i)
         date_str = current_date.isoformat()
 
+        # Ищем тренировку на текущую дату
         workout_result = await db.execute(
             select(Workout).where(
                 Workout.user_id == user_id,
@@ -57,6 +60,7 @@ async def get_calendar_events(db: AsyncSession, user_id: int) -> List[CalendarEv
                 muscle_group=workout.muscle_group
             ))
         else:
+            # Если тренировки нет - создаем событие выходного дня
             weekday = current_date.weekday()
             weekdays = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
 
@@ -71,6 +75,7 @@ async def get_calendar_events(db: AsyncSession, user_id: int) -> List[CalendarEv
 
 
 def get_reminder(calendar_events: List[CalendarEvent]) -> str:
+    """Сгенерировать напоминание о завтрашнем дне"""
     tomorrow = (datetime.utcnow() + timedelta(days=1)).date().isoformat()
 
     for event in calendar_events:
@@ -85,8 +90,10 @@ def get_reminder(calendar_events: List[CalendarEvent]) -> str:
 
 @router.get("/page", response_model=WorkoutPageResponse)
 async def get_workout_page(db: AsyncSession = Depends(get_db)):
+    """Получить главную страницу тренировок с активной тренировкой и календарем"""
     user_id = 1
 
+    # Ищем активную тренировку на сегодня
     today = datetime.utcnow().date()
     workout_result = await db.execute(
         select(Workout).where(
@@ -97,9 +104,11 @@ async def get_workout_page(db: AsyncSession = Depends(get_db)):
     )
     active_workout = workout_result.scalar_one_or_none()
 
+    # Если активной тренировки нет - генерируем демо
     if not active_workout:
         active_workout = await generate_demo_workout(db, user_id)
 
+    # Формируем ответ с упражнениями
     workout_response = None
     if active_workout:
         exercises_result = await db.execute(
@@ -126,6 +135,7 @@ async def get_workout_page(db: AsyncSession = Depends(get_db)):
             } for ex in exercises]
         )
 
+    # Получаем календарь и напоминания
     calendar_events = await get_calendar_events(db, user_id)
     reminder = get_reminder(calendar_events)
 
@@ -138,6 +148,7 @@ async def get_workout_page(db: AsyncSession = Depends(get_db)):
 
 
 async def generate_demo_workout(db: AsyncSession, user_id: int) -> Workout:
+    """Сгенерировать демо-тренировку когда нет активных тренировок"""
     workout_templates = {
         "upper_body_push": {
             "name": "Upper Body Push Workout",
@@ -154,6 +165,7 @@ async def generate_demo_workout(db: AsyncSession, user_id: int) -> Workout:
 
     template = workout_templates["upper_body_push"]
 
+    # Создаем тренировку
     workout = Workout(
         user_id=user_id,
         name=template["name"],
@@ -166,6 +178,7 @@ async def generate_demo_workout(db: AsyncSession, user_id: int) -> Workout:
     await db.commit()
     await db.refresh(workout)
 
+    # Добавляем упражнения
     for ex_data in template["exercises"]:
         exercise = Exercise(
             workout_id=workout.id,
@@ -188,6 +201,7 @@ async def generate_ai_workout(
         ai_request: AIWorkoutRequest,
         db: AsyncSession = Depends(get_db)
 ):
+    """Сгенерировать AI тренировку по выбранной группе мышц"""
     user_id = 1
 
     workout_templates = {
@@ -235,8 +249,8 @@ async def generate_ai_workout(
     if not template:
         raise HTTPException(status_code=400, detail="Неизвестная группа мышц")
 
+    # Удаляем незавершенные тренировки на сегодня
     today = datetime.utcnow().date()
-
     workouts_result = await db.execute(
         select(Workout).where(
             Workout.user_id == user_id,
@@ -256,6 +270,7 @@ async def generate_ai_workout(
 
     await db.commit()
 
+    # Создаем новую AI тренировку
     workout = Workout(
         user_id=user_id,
         name=template["name"],
@@ -268,6 +283,7 @@ async def generate_ai_workout(
     await db.commit()
     await db.refresh(workout)
 
+    # Добавляем упражнения из шаблона
     exercises_data = []
     for ex_data in template["exercises"]:
         exercise = Exercise(
@@ -310,10 +326,11 @@ async def create_custom_workout(
         workout_data: WorkoutCreate,
         db: AsyncSession = Depends(get_db)
 ):
+    """Создать пользовательскую тренировку"""
     user_id = 1
 
+    # Удаляем незавершенные тренировки на сегодня
     today = datetime.utcnow().date()
-
     workouts_result = await db.execute(
         select(Workout).where(
             Workout.user_id == user_id,
@@ -333,6 +350,7 @@ async def create_custom_workout(
 
     await db.commit()
 
+    # Создаем новую тренировку
     workout = Workout(
         user_id=user_id,
         name=workout_data.name,
@@ -345,6 +363,7 @@ async def create_custom_workout(
     await db.commit()
     await db.refresh(workout)
 
+    # Добавляем упражнения из запроса
     exercises_data = []
     for ex_data in workout_data.exercises:
         exercise = Exercise(
@@ -388,8 +407,10 @@ async def complete_workout(
         complete_data: CompleteWorkoutRequest,
         db: AsyncSession = Depends(get_db)
 ):
+    """Завершить тренировку и обновить данные упражнений"""
     user_id = 1
 
+    # Находим тренировку
     workout_result = await db.execute(
         select(Workout).where(
             Workout.id == workout_id,
@@ -401,6 +422,7 @@ async def complete_workout(
     if not workout:
         raise HTTPException(status_code=404, detail="Тренировка не найдена")
 
+    # Обновляем вес и параметры упражнений
     total_weight = 0
     for ex_data in complete_data.exercises:
         exercise_result = await db.execute(
@@ -416,11 +438,13 @@ async def complete_workout(
                 exercise.reps = ex_data.reps
             total_weight += ex_data.weight * exercise.sets
 
+    # Помечаем тренировку завершенной
     workout.completed = True
     workout.total_weight_lifted = total_weight
 
     await db.commit()
 
+    # Получаем обновленные упражнения
     exercises_result = await db.execute(
         select(Exercise).where(Exercise.workout_id == workout_id)
     )
@@ -457,8 +481,10 @@ async def create_post_workout_test(
         test_data: PostWorkoutTestCreate,
         db: AsyncSession = Depends(get_db)
 ):
+    """Создать послетренировочный тест"""
     user_id = 1
 
+    # Проверяем что тренировка существует
     workout_result = await db.execute(
         select(Workout).where(
             Workout.id == workout_id,
@@ -470,7 +496,7 @@ async def create_post_workout_test(
     if not workout:
         raise HTTPException(status_code=404, detail="Тренировка не найдена")
 
-    # РАСЧЕТ ОБЩЕГО РЕЗУЛЬТАТА ПО 7 ВОПРОСАМ
+    # Расчет общего результата по 7 вопросам
     positive_score = (test_data.mood + test_data.energy_level + test_data.performance) / 3
     negative_score = (test_data.tiredness + test_data.pain_discomfort) / 2
     rest_time_score = 10 - min(abs(test_data.avg_rest_time - 90) / 15, 5)
@@ -485,6 +511,7 @@ async def create_post_workout_test(
 
     final_score = max(1, min(10, round(overall_score, 1)))
 
+    # Создаем запись теста
     post_test = PostWorkoutTest(
         user_id=user_id,
         workout_id=workout_id,
@@ -512,6 +539,7 @@ async def create_post_workout_test(
 
 
 def get_interpretation(score: float) -> str:
+    """Интерпретировать результат послетренировочного теста"""
     if score >= 9:
         return "Отличная тренировка! 💪"
     elif score >= 7:
@@ -526,13 +554,16 @@ def get_interpretation(score: float) -> str:
 
 @router.get("/statistics")
 async def get_workout_statistics(db: AsyncSession = Depends(get_db)):
+    """Получить статистику тренировок пользователя"""
     user_id = 1
 
+    # Общее количество тренировок
     total_workouts_result = await db.execute(
         select(func.count(Workout.id)).where(Workout.user_id == user_id)
     )
     total_workouts = total_workouts_result.scalar()
 
+    # Завершенные тренировки
     completed_workouts_result = await db.execute(
         select(func.count(Workout.id)).where(
             Workout.user_id == user_id,
@@ -541,6 +572,7 @@ async def get_workout_statistics(db: AsyncSession = Depends(get_db)):
     )
     completed_workouts = completed_workouts_result.scalar()
 
+    # Суммарный поднятый вес
     total_weight_result = await db.execute(
         select(func.coalesce(func.sum(Workout.total_weight_lifted), 0)).where(
             Workout.user_id == user_id,

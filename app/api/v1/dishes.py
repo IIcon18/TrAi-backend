@@ -34,6 +34,7 @@ DISH_DATABASE = [
 
 @router.get("/meal-types")
 async def get_meal_types():
+    """Получить доступные типы приемов пищи"""
     return ["breakfast", "lunch", "dinner", "snack"]
 
 
@@ -42,6 +43,7 @@ async def create_meal(
         meal_data: MealCreate,
         db: AsyncSession = Depends(get_db)
 ):
+    """Создать новый прием пищи"""
     user_id = 1
 
     meal = Meal(
@@ -65,12 +67,18 @@ async def create_meal(
 
 @router.post("/search")
 async def search_dishes(search_data: SearchDishRequest):
+    """Поиск блюд по названию (пустой запрос возвращает популярные)"""
     query = search_data.query.lower()
 
-    results = [
-        DishSearchResult(**dish) for dish in DISH_DATABASE
-        if query in dish["name"].lower()
-    ]
+    # Если запрос пустой - возвращаем популярные блюда
+    if not query.strip():
+        results = [DishSearchResult(**dish) for dish in DISH_DATABASE[:6]]
+    else:
+        # Иначе ищем по названию
+        results = [
+            DishSearchResult(**dish) for dish in DISH_DATABASE
+            if query in dish["name"].lower()
+        ]
 
     return {
         "query": search_data.query,
@@ -85,7 +93,7 @@ async def add_dish_to_meal(
         dish_data: DishCreate,
         db: AsyncSession = Depends(get_db)
 ):
-
+    """Добавить блюдо в прием пищи"""
     meal_result = await db.execute(
         select(Meal).where(Meal.id == meal_id)
     )
@@ -125,6 +133,7 @@ async def get_meal_with_dishes(
         meal_id: int,
         db: AsyncSession = Depends(get_db)
 ):
+    """Получить прием пищи со всеми блюдами"""
     meal_result = await db.execute(
         select(Meal).where(Meal.id == meal_id)
     )
@@ -154,10 +163,3 @@ async def get_meal_with_dishes(
             carbs=dish.carbs
         ) for dish in dishes]
     )
-
-
-@router.get("/popular")
-async def get_popular_dishes():
-    return {
-        "popular_dishes": DISH_DATABASE[:6]
-    }
