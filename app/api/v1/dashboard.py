@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from datetime import datetime, timedelta
@@ -48,7 +48,7 @@ async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyCh
                     mood=random.randint(6, 10)
                 ))
 
-        return chart_data
+        return chart_data[::-1]
 
     except Exception as e:
         logger.error(f"Ошибка в get_energy_chart_data: {e}")
@@ -141,8 +141,9 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
         weekly_data = await get_weekly_progress(db, user_id)
 
         week_ago = datetime.utcnow() - timedelta(days=7)
-        weight_result = await db.execute(
-            select(func.sum(Exercise.weight * Exercise.sets * Exercise.reps))
+
+        exercises_result = await db.execute(
+            select(Exercise)
             .join(Workout)
             .where(and_(
                 Workout.user_id == user_id,
@@ -150,8 +151,17 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
                 Workout.scheduled_at >= week_ago,
                 Exercise.exercise_type.in_(["bench_press", "squat", "deadlift"])
             ))
+            .order_by(Exercise.created_at.desc())
         )
-        total_weight_lifted = weight_result.scalar() or 0
+        exercises = exercises_result.scalars().all()
+
+        exercise_max_weights = {}
+        for exercise in exercises:
+            if exercise.exercise_type not in exercise_max_weights:
+                total_weight = exercise.weight * exercise.sets * exercise.reps
+                exercise_max_weights[exercise.exercise_type] = total_weight
+
+        total_weight_lifted = sum(exercise_max_weights.values())
 
         recovery_result = await db.execute(
             select(func.avg(PostWorkoutTest.recovery_score))
@@ -163,29 +173,44 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
         recovery_score = recovery_result.scalar() or 75.0
 
         user_result = await db.execute(
-            select(User.initial_weight, User.weight, User.target_weight)
+            select(User.initial_weight, User.weight, User.target_weight, User.fitness_goal)
             .where(User.id == user_id)
         )
         user_data = user_result.first()
 
         goal_progress = 0
         weight_change = 0
+        target_progress = "0 кг"
 
         if user_data and user_data.initial_weight and user_data.target_weight:
-            initial, current, target = user_data
+            initial, current, target, goal = user_data
             weight_change = round(initial - current, 1)
 
             if target > initial:
-                goal_progress = round(((current - initial) / (target - initial)) * 100, 1)
+                target_progress = f"+{target - initial} кг"
             elif target < initial:
-                goal_progress = round(((initial - current) / (initial - target)) * 100, 1)
+                target_progress = f"-{initial - target} кг"
+            else:
+                target_progress = "0 кг"
+
+            if target > initial:
+                total_change_needed = target - initial
+                current_progress = current - initial
+                if total_change_needed > 0:
+                    goal_progress = round((current_progress / total_change_needed) * 100, 1)
+            elif target < initial:
+                total_change_needed = initial - target
+                current_progress = initial - current
+                if total_change_needed > 0:
+                    goal_progress = round((current_progress / total_change_needed) * 100, 1)
 
         return QuickStats(
             planned_workouts=weekly_data["planned_workouts"],
             total_weight_lifted=round(total_weight_lifted, 1),
             recovery_score=round(recovery_score, 1),
-            goal_progress=goal_progress,
-            weight_change=weight_change
+            goal_progress=max(0, min(100, goal_progress)),
+            weight_change=weight_change,
+            target_progress=target_progress
         )
 
     except Exception as e:
@@ -195,7 +220,8 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
             total_weight_lifted=0,
             recovery_score=75.0,
             goal_progress=0,
-            weight_change=0
+            weight_change=0,
+            target_progress="0 кг"
         )
 
 
@@ -276,7 +302,8 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
         user_result = await db.execute(select(User).order_by(User.id).limit(1))
         user = user_result.scalar_one_or_none()
         if not user:
-            raise HTTPException(status_code=404, detail="Пользователь не найден")
+            return await get_demo_dashboard()
+
         user_id = user.id
 
         energy_chart = await get_energy_chart_data(db, user_id)
@@ -289,7 +316,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
         progress_fact = generate_progress_fact(quick_stats, WeeklyProgress(**weekly_progress_data),
                                                quick_stats.weight_change)
 
-        user_greeting = f"Привет, {user.email.split('@')[0]}!"
+        user_greeting = f"Привет, {user.email.split('@')[0]}!" if user.email else "Привет!"
 
         return DashboardResponse(
             user_greeting=user_greeting,
@@ -304,7 +331,38 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"Ошибка при загрузке dashboard: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Ошибка при загрузке dashboard: {str(e)}"
-        )
+        return await get_demo_dashboard()
+
+
+async def get_demo_dashboard() -> DashboardResponse:
+    demo_dates = [(datetime.utcnow() - timedelta(days=i)).strftime("%d.%m") for i in range(6, -1, -1)]
+
+    return DashboardResponse(
+        user_greeting="Привет!",
+        progress_fact="Начни тренировки чтобы увидеть свой прогресс! 🚀",
+        energy_chart=[
+            EnergyChartData(date=date, energy=random.randint(6, 10), mood=random.randint(6, 10))
+            for date in demo_dates
+        ],
+        weekly_progress=WeeklyProgress(
+            planned_workouts=4,
+            completed_workouts=3,
+            completion_rate=75.0
+        ),
+        nutrition_plan=NutritionPlan(
+            calories=2000,
+            protein=150,
+            carbs=200,
+            fat=67
+        ),
+        quick_stats=QuickStats(
+            planned_workouts=4,
+            total_weight_lifted=1250.5,
+            recovery_score=82.0,
+            goal_progress=25.0,
+            weight_change=-2.0,
+            target_progress="-8 кг"
+        ),
+        quick_actions=get_quick_actions(),
+        ai_recommendations=[]
+    )

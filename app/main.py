@@ -18,4 +18,19 @@ async def startup_event():
 
 @app.get("/")
 async def root():
-    return {"message": "Добро пожаловать в TrAi!"}
+    base_url = "http://localhost:8000"
+
+    return {
+        "app": "TrAi",
+        "message": "Trai - your personal training intelligence",
+        "links": {
+            "📊 Dashboard": f"{base_url}/dashboard",
+            "💪 Workouts": f"{base_url}/workouts",
+            "📈 Progress": f"{base_url}/progress",
+            "👤 Profile": f"{base_url}/profile",
+            "🎯 Goals": f"{base_url}/goals",
+            "🥗 Nutrition": f"{base_url}/nutrition",
+            "📚 Docs": f"{base_url}/docs",
+            "📖 ReDoc": f"{base_url}/redoc"
+        }
+    }

@@ -1,37 +1,40 @@
+# app/schemas/progress.py
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Literal
+from enum import Enum
 
-class ProgressCreate(BaseModel):
-    weight: float
-    notes: Optional[str]
-    photo: Optional[str]
-    total_lifted_weight: Optional[float]
-    recovery_score: Optional[float]
-    completed_workouts: Optional[int]
-    recorded_at: datetime
+class ProgressMetric(str, Enum):
+    WEIGHT = "weight"
+    BODY_FAT = "body_fat"
+    WORKOUTS = "workouts"
+    RECOVERY = "recovery"
 
-class ProgressRead(BaseModel):
-    id: int
-    weight: float
-    notes: Optional[str]
-    photo: Optional[str]
-    total_lifted_weight: Optional[float]
-    recovery_score: Optional[float]
-    completed_workouts: Optional[int]
-    recorded_at: datetime
+class ProgressChartData(BaseModel):
+    date: str  # "01.11"
+    value: float
+    label: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+class GoalProgress(BaseModel):
+    completion_percentage: float  # 0-100
+    weight_lost: float  # -8 кг
+    daily_calorie_deficit: int  # 500 ккал
+    streak_weeks: int  # 5 недель
+    target_weight: float
+    current_weight: float
 
-class ProgressUpdate(BaseModel):
-    weight: Optional[float] = None
-    notes: Optional[str] = None
-    photo: Optional[str] = None
-    total_lifted_weight: Optional[float] = None
-    recovery_score: Optional[float] = None
-    completed_workouts: Optional[int] = None
-    recorded_at: Optional[datetime] = None
+class NutritionPlan(BaseModel):
+    calories: int
+    protein: int
+    carbs: int
+    fat: int
+    protein_percentage: float  # для прогресс-баров
+    carbs_percentage: float
+    fat_percentage: float
 
-    class Config:
-        from_attributes = True
+class ProgressResponse(BaseModel):
+    selected_metric: str
+    chart_data: List[ProgressChartData]
+    ai_fact: str
+    goal_progress: GoalProgress
+    nutrition_plan: NutritionPlan
