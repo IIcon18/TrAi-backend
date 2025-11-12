@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.db import get_db
+from app.core.dependencies import get_current_user  # ← ДОБАВИЛ ЗАЩИТУ
 from app.schemas.goal import (
     GoalStep1, GoalStep2, GoalUpdate, GoalResponse,
     GoalType, Level
@@ -36,12 +37,13 @@ async def get_or_create_goal(db: AsyncSession, goal_type: GoalType) -> Goal:
 @router.post("/select-goal-type", response_model=dict)
 async def update_goal_step1(
         goal_data: GoalStep1,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Обновить цель (шаг 1): тип цели, уровень и дни тренировок"""
     try:
-        user_result = await db.execute(select(User).where(User.id == 1))
-        user = user_result.scalar_one_or_none()
+        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
+        user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -78,12 +80,13 @@ async def update_goal_step1(
 @router.post("/select-training-days", response_model=GoalResponse)
 async def update_goal_step2(
         goal_data: GoalStep2,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Обновить цель (шаг 2): выбор конкретных дней для тренировок"""
     try:
-        user_result = await db.execute(select(User).where(User.id == 1))
-        user = user_result.scalar_one_or_none()
+        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
+        user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -126,12 +129,13 @@ async def update_goal_step2(
 @router.put("/complete", response_model=GoalResponse)
 async def update_goal_complete(
         goal_data: GoalUpdate,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Полное обновление цели (все параметры сразу)"""
     try:
-        user_result = await db.execute(select(User).where(User.id == 1))
-        user = user_result.scalar_one_or_none()
+        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
+        user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -176,11 +180,14 @@ async def update_goal_complete(
 
 
 @router.get("/current", response_model=GoalResponse)
-async def get_current_goal(db: AsyncSession = Depends(get_db)):
+async def get_current_goal(
+    current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+    db: AsyncSession = Depends(get_db)
+):
     """Получить текущую цель пользователя"""
     try:
-        user_result = await db.execute(select(User).where(User.id == 1))
-        user = user_result.scalar_one_or_none()
+        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
+        user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")

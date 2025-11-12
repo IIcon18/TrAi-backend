@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import List
 
 from app.core.db import get_db
+from app.core.dependencies import get_current_user  # ← ДОБАВИЛ ЗАЩИТУ
 from app.schemas.workout import (
     WorkoutCreate, WorkoutResponse, AIWorkoutRequest,
     CompleteWorkoutRequest, WorkoutPageResponse, CalendarEvent,
@@ -13,6 +14,7 @@ from app.schemas.workout import (
 )
 from app.models.workout import Workout, Exercise
 from app.models.post_workout_test import PostWorkoutTest
+from app.models.user import User  # ← ДОБАВИЛ ДЛЯ ТИПИЗАЦИИ
 
 router = APIRouter(prefix="/workouts", tags=["workouts"])
 
@@ -89,9 +91,13 @@ def get_reminder(calendar_events: List[CalendarEvent]) -> str:
 
 
 @router.get("/page", response_model=WorkoutPageResponse)
-async def get_workout_page(db: AsyncSession = Depends(get_db)):
+async def get_workout_page(
+    current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+    db: AsyncSession = Depends(get_db)
+):
     """Получить главную страницу тренировок с активной тренировкой и календарем"""
-    user_id = 1
+    # ИСПОЛЬЗУЕМ current_user.id вместо жесткого user_id - ДОБАВИЛ ЗАЩИТУ
+    user_id = current_user.id
 
     # Ищем активную тренировку на сегодня
     today = datetime.utcnow().date()
@@ -199,10 +205,12 @@ async def generate_demo_workout(db: AsyncSession, user_id: int) -> Workout:
 @router.post("/generate-ai", response_model=WorkoutResponse)
 async def generate_ai_workout(
         ai_request: AIWorkoutRequest,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Сгенерировать AI тренировку по выбранной группе мышц"""
-    user_id = 1
+    # ИСПОЛЬЗУЕМ current_user.id вместо жесткого user_id - ДОБАВИЛ ЗАЩИТУ
+    user_id = current_user.id
 
     workout_templates = {
         "upper_body_push": {
@@ -324,10 +332,12 @@ async def generate_ai_workout(
 @router.post("/custom", response_model=WorkoutResponse)
 async def create_custom_workout(
         workout_data: WorkoutCreate,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Создать пользовательскую тренировку"""
-    user_id = 1
+    # ИСПОЛЬЗУЕМ current_user.id вместо жесткого user_id - ДОБАВИЛ ЗАЩИТУ
+    user_id = current_user.id
 
     # Удаляем незавершенные тренировки на сегодня
     today = datetime.utcnow().date()
@@ -405,10 +415,12 @@ async def create_custom_workout(
 async def complete_workout(
         workout_id: int,
         complete_data: CompleteWorkoutRequest,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Завершить тренировку и обновить данные упражнений"""
-    user_id = 1
+    # ИСПОЛЬЗУЕМ current_user.id вместо жесткого user_id - ДОБАВИЛ ЗАЩИТУ
+    user_id = current_user.id
 
     # Находим тренировку
     workout_result = await db.execute(
@@ -479,10 +491,12 @@ async def complete_workout(
 async def create_post_workout_test(
         workout_id: int,
         test_data: PostWorkoutTestCreate,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Создать послетренировочный тест"""
-    user_id = 1
+    # ИСПОЛЬЗУЕМ current_user.id вместо жесткого user_id - ДОБАВИЛ ЗАЩИТУ
+    user_id = current_user.id
 
     # Проверяем что тренировка существует
     workout_result = await db.execute(
@@ -553,9 +567,13 @@ def get_interpretation(score: float) -> str:
 
 
 @router.get("/statistics")
-async def get_workout_statistics(db: AsyncSession = Depends(get_db)):
+async def get_workout_statistics(
+    current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+    db: AsyncSession = Depends(get_db)
+):
     """Получить статистику тренировок пользователя"""
-    user_id = 1
+    # ИСПОЛЬЗУЕМ current_user.id вместо жесткого user_id - ДОБАВИЛ ЗАЩИТУ
+    user_id = current_user.id
 
     # Общее количество тренировок
     total_workouts_result = await db.execute(

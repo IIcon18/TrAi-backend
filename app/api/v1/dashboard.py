@@ -11,6 +11,7 @@ from app.schemas.dashboard import (
     DashboardResponse, WeeklyProgress, QuickStats, NutritionPlan,
     AIRecommendationRead, EnergyChartData, QuickAction
 )
+from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.workout import Workout, Exercise
 from app.models.post_workout_test import PostWorkoutTest
@@ -51,7 +52,7 @@ async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyCh
                     mood=random.randint(6, 10)
                 ))
 
-        return chart_data[::-1]  # Переворачиваем чтобы старые даты были первыми
+        return chart_data[::-1]
 
     except Exception as e:
         logger.error(f"Ошибка в get_energy_chart_data: {e}")
@@ -318,16 +319,13 @@ async def get_ai_recommendations(db: AsyncSession, user_id: int) -> List[AIRecom
 
 
 @router.get("", response_model=DashboardResponse)
-async def get_dashboard(db: AsyncSession = Depends(get_db)):
+async def get_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Получить все данные для главного дашборда"""
     try:
-        # Получаем первого пользователя (для демо)
-        user_result = await db.execute(select(User).order_by(User.id).limit(1))
-        user = user_result.scalar_one_or_none()
-        if not user:
-            return await get_demo_dashboard()
-
-        user_id = user.id
+        user_id = current_user.id
 
         # Параллельно собираем все данные для дашборда
         energy_chart = await get_energy_chart_data(db, user_id)
@@ -341,8 +339,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
         progress_fact = generate_progress_fact(quick_stats, WeeklyProgress(**weekly_progress_data),
                                                quick_stats.weight_change)
 
-        # Формируем приветствие
-        user_greeting = f"Привет, {user.email.split('@')[0]}!" if user.email else "Привет!"
+        user_greeting = f"Привет, {current_user.email.split('@')[0]}!" if current_user.email else "Привет!"
 
         return DashboardResponse(
             user_greeting=user_greeting,
@@ -357,19 +354,29 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"Ошибка при загрузке dashboard: {str(e)}")
-        return await get_demo_dashboard()
+        return await get_demo_dashboard(current_user)
 
 
-async def get_demo_dashboard() -> DashboardResponse:
-    """Вернуть демо-данные дашборда когда нет пользователя"""
+async def get_demo_dashboard(user: User = None) -> DashboardResponse:
+    """Вернуть демо-данные дашборда для нового пользователя или при ошибках"""
     demo_dates = [(datetime.utcnow() - timedelta(days=i)).strftime("%d.%m") for i in range(6, -1, -1)]
 
+    if user and user.email:
+        user_greeting = f"Привет, {user.email.split('@')[0]}!"
+        progress_fact = f"{user.email.split('@')[0]}, начни тренировки чтобы увидеть свой прогресс! 🚀"
+    else:
+        user_greeting = "Привет!"
+        progress_fact = "Начни тренировки чтобы увидеть свой прогресс! 🚀"
+
     return DashboardResponse(
-        user_greeting="Привет!",
-        progress_fact="Начни тренировки чтобы увидеть свой прогресс! 🚀",
+        user_greeting=user_greeting,
+        progress_fact=progress_fact,
         energy_chart=[
-            EnergyChartData(date=date, energy=random.randint(6, 10), mood=random.randint(6, 10))
-            for date in demo_dates
+            EnergyChartData(
+                date=date,
+                energy=random.randint(6, 10),
+                mood=random.randint(6, 10)
+            ) for date in demo_dates
         ],
         weekly_progress=WeeklyProgress(
             planned_workouts=4,

@@ -6,6 +6,7 @@ import shutil
 import os
 
 from app.core.db import get_db
+from app.core.dependencies import get_current_user  # ← ДОБАВИЛ ЗАЩИТУ
 from app.schemas.profile import (
     ProfileResponse, ProfileUpdate, TelegramConnectRequest,
     TelegramConnectResponse, AIFact, AvatarUploadResponse
@@ -18,13 +19,14 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 
 
 @router.get("/", response_model=ProfileResponse)
-async def get_profile(db: AsyncSession = Depends(get_db)):
+async def get_profile(
+    current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+    db: AsyncSession = Depends(get_db)
+):
     """Получить профиль текущего пользователя"""
     try:
-        user_result = await db.execute(
-            select(User).where(User.id == 1)
-        )
-        user = user_result.scalar_one_or_none()
+        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
+        user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -65,14 +67,13 @@ async def get_profile(db: AsyncSession = Depends(get_db)):
 @router.put("/", response_model=ProfileResponse)
 async def update_profile(
         profile_update: ProfileUpdate,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Обновить данные профиля пользователя"""
     try:
-        user_result = await db.execute(
-            select(User).where(User.id == 1)  # TODO: Заменить на текущего пользователя
-        )
-        user = user_result.scalar_one_or_none()
+        # ИСПОЛЬЗУЕМ current_user вместо запроса - ДОБАВИЛ ЗАЩИТУ
+        user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -123,12 +124,13 @@ async def update_profile(
 @router.post("/avatar", response_model=AvatarUploadResponse)
 async def upload_avatar(
         file: UploadFile = File(...),
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Загрузить аватар пользователя"""
     try:
-        user_result = await db.execute(select(User).where(User.id == 1))
-        user = user_result.scalar_one_or_none()
+        # ИСПОЛЬЗУЕМ current_user - ДОБАВИЛ ЗАЩИТУ
+        user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -166,14 +168,13 @@ async def upload_avatar(
 @router.post("/connect-telegram", response_model=TelegramConnectResponse)
 async def connect_telegram(
         telegram_data: TelegramConnectRequest,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Подключить Telegram аккаунт для уведомлений"""
     try:
-        user_result = await db.execute(
-            select(User).where(User.id == 1)
-        )
-        user = user_result.scalar_one_or_none()
+        # ИСПОЛЬЗУЕМ current_user - ДОБАВИЛ ЗАЩИТУ
+        user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -195,12 +196,15 @@ async def connect_telegram(
         raise HTTPException(status_code=500, detail=f"Ошибка при подключении Telegram: {str(e)}")
 
 @router.get("/ai-facts", response_model=List[AIFact])
-async def get_ai_facts(db: AsyncSession = Depends(get_db)):
+async def get_ai_facts(
+    current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+    db: AsyncSession = Depends(get_db)
+):
     """Получить последние AI рекомендации для пользователя"""
     try:
         facts_result = await db.execute(
             select(AIRecommendation)
-            .where(AIRecommendation.user_id == 1)
+            .where(AIRecommendation.user_id == current_user.id)  # ← ДОБАВИЛ ЗАЩИТУ - текущий пользователь!
             .order_by(AIRecommendation.created_at.desc())
             .limit(5)
         )

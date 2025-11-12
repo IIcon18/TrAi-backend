@@ -1,20 +1,47 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
+
 from app.api.router import api_router
 from app.core import init_database
 from app.core.test_data import create_test_data
 from app.core.db import AsyncSessionLocal
+from app.models.user import User
 
 app = FastAPI(title="TrAi - your personal training intelligence")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8080",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(api_router)
+
 
 @app.on_event("startup")
 async def startup_event():
     await init_database()
     print("Приложение запущено!")
 
+    from app.models.user import User
+
     async with AsyncSessionLocal() as session:
-        await create_test_data(session)
+        result = await session.execute(select(User).where(User.email == "test@example.com"))
+        existing_user = result.scalar_one_or_none()
+
+        if not existing_user:
+            await create_test_data(session)
+            print("✅ Тестовый пользователь создан")
+        else:
+            print(f"✅ Тестовый пользователь уже существует: {existing_user.email} (ID: {existing_user.id})")
+
 
 @app.get("/")
 async def root():
@@ -34,3 +61,16 @@ async def root():
             "📖 ReDoc": f"{base_url}/redoc"
         }
     }
+
+@app.get("/debug/users")
+async def debug_users():
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User))
+        users = result.scalars().all()
+        return {
+            "total_users": len(users),
+            "users": [
+                {"id": u.id, "email": u.email, "created_at": u.created_at}
+                for u in users
+            ]
+        }

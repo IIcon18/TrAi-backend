@@ -7,6 +7,7 @@ import random
 from typing import List
 
 from app.core.db import get_db
+from app.core.dependencies import get_current_user  # ← ДОБАВИЛ ЗАЩИТУ
 from app.schemas.progress import (
     ProgressResponse, ProgressChartData, GoalProgress, NutritionPlan, ProgressMetric
 )
@@ -353,17 +354,16 @@ async def get_nutrition_plan(db: AsyncSession, user_id: int) -> NutritionPlan:
 @router.get("", response_model=ProgressResponse)
 async def get_progress(
         metric: ProgressMetric = ProgressMetric.WEIGHT,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     try:
-        # Получаем первого пользователя (для демо)
-        user_result = await db.execute(select(User).order_by(User.id).limit(1))
-        user = user_result.scalar_one_or_none()
+        # ИСПОЛЬЗУЕМ current_user вместо первого пользователя - ДОБАВИЛ ЗАЩИТУ
+        user = current_user
+        user_id = user.id
 
         if not user:
             return await get_demo_progress(metric)
-
-        user_id = user.id
 
         # Получить данные для графика
         chart_data = await get_progress_chart_data(db, user_id, metric)

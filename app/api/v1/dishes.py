@@ -4,11 +4,13 @@ from sqlalchemy import select
 from datetime import datetime
 
 from app.core.db import get_db
+from app.core.dependencies import get_current_user  # ← ДОБАВИЛ ЗАЩИТУ
 from app.schemas.dish import (
     DishCreate, DishResponse, MealCreate, MealResponse,
     SearchDishRequest, DishSearchResult
 )
 from app.models.meal import Meal, Dish
+from app.models.user import User  # ← ДОБАВИЛ ДЛЯ ТИПИЗАЦИИ
 
 router = APIRouter(prefix="/dishes", tags=["dishes"])
 
@@ -41,10 +43,12 @@ async def get_meal_types():
 @router.post("/create-meal", response_model=MealResponse)
 async def create_meal(
         meal_data: MealCreate,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Создать новый прием пищи"""
-    user_id = 1
+    # ИСПОЛЬЗУЕМ current_user.id вместо жесткого user_id = 1 - ДОБАВИЛ ЗАЩИТУ
+    user_id = current_user.id
 
     meal = Meal(
         user_id=user_id,
@@ -91,6 +95,7 @@ async def search_dishes(search_data: SearchDishRequest):
 async def add_dish_to_meal(
         meal_id: int,
         dish_data: DishCreate,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Добавить блюдо в прием пищи"""
@@ -101,6 +106,10 @@ async def add_dish_to_meal(
 
     if not meal:
         raise HTTPException(status_code=404, detail="Прием пищи не найден")
+
+    # ДОБАВИЛ ПРОВЕРКУ - можно добавлять только в свои приемы пищи
+    if meal.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Нельзя добавлять блюда в чужие приемы пищи")
 
     dish = Dish(
         meal_id=meal_id,
@@ -131,6 +140,7 @@ async def add_dish_to_meal(
 @router.get("/meal/{meal_id}", response_model=MealResponse)
 async def get_meal_with_dishes(
         meal_id: int,
+        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
         db: AsyncSession = Depends(get_db)
 ):
     """Получить прием пищи со всеми блюдами"""
@@ -141,6 +151,10 @@ async def get_meal_with_dishes(
 
     if not meal:
         raise HTTPException(status_code=404, detail="Прием пищи не найден")
+
+    # ДОБАВИЛ ПРОВЕРКУ - можно смотреть только свои приемы пищи
+    if meal.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Нельзя просматривать чужие приемы пищи")
 
     dishes_result = await db.execute(
         select(Dish).where(Dish.meal_id == meal_id)
