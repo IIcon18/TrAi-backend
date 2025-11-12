@@ -61,16 +61,3 @@ async def root():
             "📖 ReDoc": f"{base_url}/redoc"
         }
     }
-
-@app.get("/debug/users")
-async def debug_users():
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(User))
-        users = result.scalars().all()
-        return {
-            "total_users": len(users),
-            "users": [
-                {"id": u.id, "email": u.email, "created_at": u.created_at}
-                for u in users
-            ]
-        }
