@@ -6,7 +6,6 @@ from app.api.router import api_router
 from app.core import init_database
 from app.core.test_data import create_test_data
 from app.core.db import AsyncSessionLocal
-from app.models.user import User
 
 app = FastAPI(title="TrAi - your personal training intelligence")
 
@@ -38,9 +37,9 @@ async def startup_event():
 
         if not existing_user:
             await create_test_data(session)
-            print("✅ Тестовый пользователь создан")
+            print("Тестовый пользователь создан")
         else:
-            print(f"✅ Тестовый пользователь уже существует: {existing_user.email} (ID: {existing_user.id})")
+            print(f"Тестовый пользователь уже существует: {existing_user.email} (ID: {existing_user.id})")
 
 
 @app.get("/")
@@ -51,13 +50,13 @@ async def root():
         "app": "TrAi",
         "message": "Trai - your personal training intelligence",
         "links": {
-            "📊 Dashboard": f"{base_url}/dashboard",
-            "💪 Workouts": f"{base_url}/workouts",
-            "📈 Progress": f"{base_url}/progress",
-            "👤 Profile": f"{base_url}/profile",
-            "🎯 Goals": f"{base_url}/goals",
-            "🥗 Nutrition": f"{base_url}/nutrition",
-            "📚 Docs": f"{base_url}/docs",
-            "📖 ReDoc": f"{base_url}/redoc"
+            "Dashboard": f"{base_url}/dashboard",
+            "Workouts": f"{base_url}/workouts",
+            "Progress": f"{base_url}/progress",
+            "Profile": f"{base_url}/profile",
+            "Goals": f"{base_url}/goals",
+            "Nutrition": f"{base_url}/nutrition",
+            "Docs": f"{base_url}/docs",
+            "ReDoc": f"{base_url}/redoc"
         }
     }

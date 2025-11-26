@@ -4,15 +4,18 @@ from sqlalchemy.orm import relationship
 from app.core.base import Base
 from datetime import datetime
 
+
 class LifestyleEnum(str, enum.Enum):
     low = "low"
     medium = "medium"
     high = "high"
 
+
 class LevelEnum(str, enum.Enum):
     beginner = "beginner"
     amateur = "amateur"
     professional = "professional"
+
 
 class User(Base):
     __tablename__ = "users"
@@ -36,8 +39,8 @@ class User(Base):
     current_goal_id = Column(Integer, ForeignKey("goals.id"), nullable=True)
     ai_calorie_plan = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-    current_goal_id = Column(Integer, ForeignKey("goals.id"), nullable=True)
+    refresh_token = Column(String, nullable=True)
+    refresh_token_expires = Column(DateTime, nullable=True)
 
     current_goal = relationship("Goal", foreign_keys=[current_goal_id])
     user_goals = relationship("UserGoal", back_populates="user", cascade="all, delete")
