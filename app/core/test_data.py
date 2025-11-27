@@ -4,11 +4,11 @@ from datetime import datetime
 
 
 async def create_test_data(session: AsyncSession):
-
     test_user = User(
         email="test@example.com",
         password="hashed_password",
         age=25,
+        gender="male",
         lifestyle="medium",
         height=180,
         weight=75.0,
@@ -18,6 +18,7 @@ async def create_test_data(session: AsyncSession):
         level="beginner",
         created_at=datetime.utcnow()
     )
+
 
     session.add(test_user)
     await session.commit()

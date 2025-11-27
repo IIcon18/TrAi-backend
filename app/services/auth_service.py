@@ -21,16 +21,20 @@ class AuthService:
 
     def hash_password(self, password: str) -> str:
         salt = bcrypt.gensalt()
-        # ИСПРАВЛЕНО: убрали .decode('utf-8')
         hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-        return hashed.decode('utf-8')  # Декодируем bytes в string для хранения в БД
+        return hashed.decode('utf-8')
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        # ИСПРАВЛЕНО: кодируем пароль обратно в bytes для проверки
-        return bcrypt.checkpw(
-            plain_password.encode('utf-8'),
-            hashed_password.encode('utf-8')
-        )
+        try:
+            if not hashed_password or not isinstance(hashed_password, str):
+                return False
+            return bcrypt.checkpw(
+                plain_password.encode('utf-8'),
+                hashed_password.encode('utf-8')
+            )
+        except Exception as e:
+            print(f"Password verification error: {e}")
+            return False
 
     def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None):
         to_encode = data.copy()
@@ -50,12 +54,17 @@ class AuthService:
         return encoded_jwt
 
     async def update_refresh_token(self, db: AsyncSession, user_id: int, refresh_token: str):
-        user = await db.get(User, user_id)
-        if user:
-            user.refresh_token = refresh_token
-            user.refresh_token_expires = datetime.utcnow() + timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
-            await db.commit()
-        return user
+        result = await db.execute(select(User.id).where(User.id == user_id))
+        user_data = result.first()
+
+        if user_data:
+            user = await db.get(User, user_id)
+            if user:
+                user.refresh_token = refresh_token
+                user.refresh_token_expires = datetime.utcnow() + timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
+                await db.commit()
+                return user
+        return None
 
     async def verify_refresh_token(self, db: AsyncSession, refresh_token: str):
         try:
@@ -66,30 +75,67 @@ class AuthService:
         except JWTError:
             return None
 
-        user = await db.get(User, int(user_id))
-        if user and user.refresh_token == refresh_token and user.refresh_token_expires > datetime.utcnow():
+        result = await db.execute(
+            select(
+                User.id,
+                User.email,
+                User.refresh_token,
+                User.refresh_token_expires
+            ).where(User.id == int(user_id))
+        )
+        user_data = result.first()
+
+        if not user_data:
+            return None
+
+        if (user_data[2] == refresh_token and
+                user_data[3] and
+                user_data[3] > datetime.utcnow()):
+            user = User()
+            user.id = user_data[0]
+            user.email = user_data[1]
             return user
+
         return None
 
     async def authenticate_user(self, db: AsyncSession, login_data: UserLogin) -> Optional[User]:
-        user_result = await db.execute(
-            select(User).where(User.email == login_data.email)
-        )
-        user = user_result.scalar_one_or_none()
+        try:
+            result = await db.execute(
+                select(
+                    User.id,
+                    User.email,
+                    User.password
+                ).where(User.email == login_data.email)
+            )
+            user_data = result.first()
 
-        if not user or not self.verify_password(login_data.password, user.password):
+            if not user_data:
+                print(f"User not found: {login_data.email}")
+                return None
+
+            if not self.verify_password(login_data.password, user_data[2]):
+                print(f"Password verification failed for: {login_data.email}")
+                return None
+
+            user = User()
+            user.id = user_data[0]
+            user.email = user_data[1]
+
+            print(f"User authenticated successfully: {user.email}")
+            return user
+
+        except Exception as e:
+            print(f"Authentication error: {e}")
             return None
 
-        return user
-
     async def register_user(self, db: AsyncSession, user_data: UserRegister) -> User:
-        existing_user = await db.execute(
-            select(User).where(User.email == user_data.email)
-        )
-        if existing_user.scalar_one_or_none():
+        result = await db.execute(select(User.id).where(User.email == user_data.email))
+        if result.first():
             raise HTTPException(status_code=400, detail="Пользователь с таким email уже существует")
 
         hashed_password = self.hash_password(user_data.password)
+        initial_weight = user_data.initial_weight or user_data.weight
+        target_weight = user_data.target_weight or (user_data.weight - 5)
 
         new_user = User(
             email=user_data.email,
@@ -98,6 +144,10 @@ class AuthService:
             lifestyle=user_data.lifestyle,
             height=user_data.height,
             weight=user_data.weight,
+            initial_weight=initial_weight,
+            target_weight=target_weight,
+            level=user_data.level,
+            weekly_training_goal=user_data.weekly_training_goal,
             created_at=datetime.utcnow()
         )
 
@@ -107,6 +157,4 @@ class AuthService:
 
         return new_user
 
-
-# Создаем экземпляр сервиса для импорта
 auth_service = AuthService()

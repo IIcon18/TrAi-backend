@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.db import get_db
-from app.core.dependencies import get_current_user  # ← ДОБАВИЛ ЗАЩИТУ
+from app.core.dependencies import get_current_user
 from app.schemas.goal import (
     GoalStep1, GoalStep2, GoalUpdate, GoalResponse,
     GoalType, Level
@@ -37,26 +37,19 @@ async def get_or_create_goal(db: AsyncSession, goal_type: GoalType) -> Goal:
 @router.post("/select-goal-type", response_model=dict)
 async def update_goal_step1(
         goal_data: GoalStep1,
-        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+        current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
     """Обновить цель (шаг 1): тип цели, уровень и дни тренировок"""
     try:
-        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
         user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
-
-        # Обновляем основные настройки пользователя
         user.level = goal_data.level
         user.weekly_training_goal = goal_data.training_days_per_week
-
-        # Создаем или находим цель
         goal = await get_or_create_goal(db, goal_data.goal_type)
         user.current_goal_id = goal.id
-
-        # Рассчитываем калории для новой цели
         user_calories = NutritionCalculator.get_user_calorie_needs(user)
         user.ai_calorie_plan = user_calories
 
@@ -80,18 +73,15 @@ async def update_goal_step1(
 @router.post("/select-training-days", response_model=GoalResponse)
 async def update_goal_step2(
         goal_data: GoalStep2,
-        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+        current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
     """Обновить цель (шаг 2): выбор конкретных дней для тренировок"""
     try:
-        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
         user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
-
-        # Проверяем что выбрано правильное количество дней
         expected_days = user.weekly_training_goal or 0
         if len(goal_data.training_days) != expected_days:
             raise HTTPException(
@@ -99,11 +89,9 @@ async def update_goal_step2(
                 detail=f"Выберите ровно {expected_days} дня(ей) для тренировок"
             )
 
-        # Сохраняем выбранные дни
         user.preferred_training_days = goal_data.training_days
         await db.commit()
 
-        # Получаем информацию о текущей цели
         goal_result = await db.execute(
             select(Goal).where(Goal.id == user.current_goal_id)
         )
@@ -129,34 +117,29 @@ async def update_goal_step2(
 @router.put("/complete", response_model=GoalResponse)
 async def update_goal_complete(
         goal_data: GoalUpdate,
-        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+        current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
     """Полное обновление цели (все параметры сразу)"""
     try:
-        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
         user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Проверяем согласованность данных
         if len(goal_data.training_days) != goal_data.training_days_per_week:
             raise HTTPException(
                 status_code=400,
                 detail=f"Количество выбранных дней должно быть {goal_data.training_days_per_week}"
             )
 
-        # Создаем или находим цель
         goal = await get_or_create_goal(db, goal_data.goal_type)
 
-        # Обновляем все параметры пользователя
         user.level = goal_data.level
         user.weekly_training_goal = goal_data.training_days_per_week
         user.preferred_training_days = goal_data.training_days
         user.current_goal_id = goal.id
 
-        # Пересчитываем калории
         user_calories = NutritionCalculator.get_user_calorie_needs(user)
         user.ai_calorie_plan = user_calories
 
@@ -181,18 +164,16 @@ async def update_goal_complete(
 
 @router.get("/current", response_model=GoalResponse)
 async def get_current_goal(
-    current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Получить текущую цель пользователя"""
     try:
-        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
         user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Получаем информацию о цели
         goal = None
         if user.current_goal_id:
             goal_result = await db.execute(

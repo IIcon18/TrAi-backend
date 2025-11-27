@@ -5,16 +5,17 @@ from datetime import datetime, timedelta
 import logging
 import random
 from typing import List
-
 from app.core.db import get_db
-from app.core.dependencies import get_current_user  # ← ДОБАВИЛ ЗАЩИТУ
+from app.core.dependencies import get_current_user
 from app.schemas.progress import (
     ProgressResponse, ProgressChartData, GoalProgress, NutritionPlan, ProgressMetric
 )
 from app.models.user import User
 from app.models.progress import Progress
 from app.models.workout import Workout
+from app.models.goal import Goal
 from app.services.nutrition_calculator import NutritionCalculator
+from app.services.ai_service import ai_service
 
 router = APIRouter(prefix="/progress", tags=["progress"])
 logger = logging.getLogger(__name__)
@@ -27,7 +28,6 @@ async def get_progress_chart_data(
 ) -> List[ProgressChartData]:
     """Получить данные для графика по выбранной метрике"""
     try:
-        # Получаем записи прогресса за последние 30 дней
         month_ago = datetime.utcnow() - timedelta(days=30)
 
         progress_result = await db.execute(
@@ -62,7 +62,6 @@ async def get_progress_chart_data(
                     label=f"{record.recovery_score}%"
                 ))
 
-        # Если данных нет, генерируем демо-данные
         if not chart_data:
             return await generate_demo_chart_data(metric)
 
@@ -115,160 +114,161 @@ async def generate_demo_chart_data(metric: ProgressMetric) -> List[ProgressChart
 async def generate_progress_fact(
         chart_data: List[ProgressChartData],
         metric: ProgressMetric,
-        user: User
+        user: User,
+        db: AsyncSession
 ) -> str:
+    """Сгенерировать AI анализ прогресса на основе данных графика"""
 
     if not chart_data:
         user_name = user.email.split('@')[0] if user.email else "Спортсмен"
         return f"{user_name}, начните отслеживать прогресс, чтобы получать персональные рекомендации! 📊"
 
-    # Получаем имя пользователя для персонализации
-    user_name = user.email.split('@')[0] if user.email else "Вы"
+    try:
+        trend_analysis = ""
+        if len(chart_data) >= 2:
+            first_value = chart_data[0].value
+            last_value = chart_data[-1].value
+            trend = last_value - first_value
+            trend_percentage = (trend / first_value * 100) if first_value != 0 else 0
 
-    # Анализируем тренд
-    trend = 0
-    if len(chart_data) >= 2:
-        first_value = chart_data[0].value
-        last_value = chart_data[-1].value
-        trend = last_value - first_value
+            if metric == ProgressMetric.WEIGHT:
+                trend_analysis = f"Изменение веса: {trend:+.1f} кг ({trend_percentage:+.1f}%) за период"
+            elif metric == ProgressMetric.BODY_FAT:
+                trend_analysis = f"Изменение процента жира: {trend:+.1f}% ({trend_percentage:+.1f}%)"
+            elif metric == ProgressMetric.WORKOUTS:
+                total_workouts = sum(item.value for item in chart_data)
+                trend_analysis = f"Всего тренировок: {total_workouts}, средняя активность: {total_workouts / len(chart_data):.1f} в день"
+            elif metric == ProgressMetric.RECOVERY:
+                avg_recovery = sum(item.value for item in chart_data) / len(chart_data)
+                trend_analysis = f"Среднее восстановление: {avg_recovery:.1f}%, диапазон: {min(item.value for item in chart_data)}-{max(item.value for item in chart_data)}%"
 
-    facts = []
+        user_goal = "не указана"
+        if user.current_goal_id:
+            goal_result = await db.execute(select(Goal).where(Goal.id == user.current_goal_id))
+            current_goal = goal_result.scalar_one_or_none()
+            if current_goal:
+                user_goal = current_goal.type.value
+
+        analysis = await ai_service.generate_progress_analysis(
+            chart_data=[
+                {
+                    "date": item.date,
+                    "value": item.value,
+                    "label": item.label
+                }
+                for item in chart_data[-10:]
+            ],
+            metric=metric.value,
+            user_data={
+                "goal": user_goal,
+                "level": user.level.value if user.level else "beginner",
+                "name": user.email.split('@')[0] if user.email else "Пользователь"
+            }
+        )
+
+        return analysis
+
+    except Exception as e:
+        logger.error(f"Ошибка AI анализа прогресса: {e}")
+        return await _generate_fallback_fact(chart_data, metric, user)
+
+
+async def _generate_fallback_fact(
+        chart_data: List[ProgressChartData],
+        metric: ProgressMetric,
+        user: User
+) -> str:
+    """Локальная генерация фактов как fallback"""
+    user_name = user.email.split('@')[0] if user.email else "Спортсмен"
+
+    if len(chart_data) < 2:
+        return f"{user_name}, продолжайте собирать данные для точного анализа! 📈"
+
+    first_value = chart_data[0].value
+    last_value = chart_data[-1].value
+    trend = last_value - first_value
 
     if metric == ProgressMetric.WEIGHT:
-        if trend < -2:
-            facts.extend([
-                f"{user_name}, отличный результат! Вы сбросили {abs(trend):.1f} кг за месяц! 🎉",
-                f"Ваш вес уверенно снижается - минус {abs(trend):.1f} кг за 30 дней! 💪",
-                f"{user_name}, прекрасный прогресс! {abs(trend):.1f} кг ближе к цели! 🌟"
-            ])
-        elif trend > 2:
-            facts.extend([
-                f"{user_name}, набор {trend:.1f} кг за месяц - возможно, стоит скорректировать питание 📊",
-                f"Обратите внимание на динамику веса: +{trend:.1f} кг за 30 дней 🏋️‍♂️"
-            ])
+        if trend < -1:
+            return f"🎉 Отличный прогресс! Вес снизился на {abs(trend):.1f} кг"
+        elif trend > 1:
+            return f"📊 Набор {trend:.1f} кг - возможно, стоит скорректировать питание"
         else:
-            current_weight = chart_data[-1].value if chart_data else user.weight
-            facts.extend([
-                f"{user_name}, вес стабилен на {current_weight:.1f} кг - отличная работа! ⚖️",
-                f"Стабильность веса {current_weight:.1f} кг - признак мастерства! 📈"
-            ])
+            return f"⚖️ Вес стабилен на {last_value:.1f} кг - хорошая работа!"
+
+    elif metric == ProgressMetric.BODY_FAT:
+        if trend < -0.5:
+            return f"💪 Отлично! Процент жира снизился на {abs(trend):.1f}%"
+        elif trend > 0.5:
+            return f"📈 Рост жира на {trend:.1f}% - обратите внимание на питание"
+        else:
+            return f"🔄 Процент жира стабилен - {last_value:.1f}%"
 
     elif metric == ProgressMetric.WORKOUTS:
         total_workouts = sum(item.value for item in chart_data)
         avg_per_week = total_workouts / 4.3
-        user_level = getattr(user, 'level', 'beginner')
 
         if avg_per_week >= 4:
-            level_comment = "как профессионал" if user_level == "professional" else "на продвинутом уровне"
-            facts.extend([
-                f"{user_name}, впечатляющая активность! {total_workouts} тренировок за месяц 🔥",
-                f"Вы тренируетесь {level_comment}! {total_workouts} занятий - это мощно! 💪"
-            ])
+            return f"🔥 Мощная активность! {total_workouts} тренировок за месяц"
         elif avg_per_week >= 2:
-            facts.extend([
-                f"{user_name}, хорошая регулярность! {total_workouts} тренировок за месяц 👍",
-                f"Стабильные {total_workouts} тренировок - надежный путь к успеху! 🏃‍♂️"
-            ])
+            return f"👍 Хорошая регулярность! {total_workouts} тренировок"
         else:
-            goal = user.weekly_training_goal or 3
-            facts.extend([
-                f"{user_name}, попробуйте увеличить частоту до {goal} тренировок в неделю 📈",
-                f"Каждая тренировка приближает к цели! Ставьте {goal} занятия в неделю 🎯"
-            ])
+            return f"🎯 Попробуйте увеличить частоту тренировок"
 
     elif metric == ProgressMetric.RECOVERY:
         avg_recovery = sum(item.value for item in chart_data) / len(chart_data)
 
         if avg_recovery >= 80:
-            facts.extend([
-                f"{user_name}, восстановление на высоте! {avg_recovery:.0f}% - это отлично! 🌟",
-                f"Супер! Восстановление {avg_recovery:.0f}% позволяет тренироваться эффективнее! 💫"
-            ])
+            return f"🌟 Восстановление на высоте! {avg_recovery:.0f}%"
         elif avg_recovery >= 60:
-            facts.extend([
-                f"{user_name}, нормальное восстановление {avg_recovery:.0f}% 🛌",
-                f"Хороший уровень {avg_recovery:.0f}%! Можно добавить интенсивности 📊"
-            ])
+            return f"📊 Нормальное восстановление {avg_recovery:.0f}%"
         else:
-            facts.extend([
-                f"{user_name}, восстановление {avg_recovery:.0f}% - уделите внимание отдыху 🥗",
-                f"Качественный сон улучшит восстановление с {avg_recovery:.0f}%! 💤"
-            ])
+            return f"💤 Восстановление {avg_recovery:.0f}% - уделите внимание отдыху"
 
-    elif metric == ProgressMetric.BODY_FAT:
-        if trend < -1:
-            facts.extend([
-                f"{user_name}, отлично! Процент жира снизился на {abs(trend):.1f}% 📉",
-                f"Заметный прогресс! Минус {abs(trend):.1f}% жира за месяц 🎯"
-            ])
-        elif trend > 1:
-            facts.extend([
-                f"{user_name}, обратите внимание: +{trend:.1f}% жира за месяц 📊",
-                f"Рост процента жира на {trend:.1f}% - скорректируйте питание 🥗"
-            ])
-        else:
-            current_fat = chart_data[-1].value if chart_data else 0
-            facts.extend([
-                f"{user_name}, процент жира стабилен на {current_fat:.1f}% ⚖️",
-                f"Стабильный {current_fat:.1f}% жира - хорошая основа для прогресса 📈"
-            ])
+    return f"{user_name}, ваш прогресс выглядит promising! Продолжайте в том же духе! 🚀"
 
-    # Персонализированные общие факты
-    general_facts = [
-        f"{user_name}, каждый день прогресса - шаг к лучшей версии себя! 🌈",
-        f"Анализ данных помогает достигать целей эффективнее, {user_name}! 📊",
-        f"{user_name}, ваше упорство впечатляет! Продолжайте в том же духе! 🚀",
-        f"{user_name}, помните: прогресс - это марафон, а не спринт! 🏃‍♂️"
-    ]
-
-    return random.choice(facts) if facts else random.choice(general_facts)
 
 async def get_goal_progress(db: AsyncSession, user_id: int, user: User) -> GoalProgress:
     """Получить прогресс по цели пользователя"""
     try:
-        # Расчет прогресса цели
-        initial_weight = user.initial_weight or user.weight
-        current_weight = user.weight
-        target_weight = user.target_weight
+        current_weight = user.weight or 0
+        initial_weight = user.initial_weight or current_weight
+        target_weight = user.target_weight or (current_weight - 5)
 
-        weight_lost = 0
+        weight_lost = initial_weight - current_weight
         completion_percentage = 0
-        daily_calorie_deficit = user.daily_calorie_deficit or 500
 
-        if initial_weight and target_weight:
-            weight_lost = initial_weight - current_weight
+        if initial_weight and target_weight and initial_weight > target_weight:
             total_goal = initial_weight - target_weight
             if total_goal > 0:
                 completion_percentage = min(100, max(0, (weight_lost / total_goal) * 100))
 
-        # Расчет стрика недель
         streak_weeks = await calculate_streak_weeks(db, user_id)
 
         return GoalProgress(
             completion_percentage=round(completion_percentage, 1),
             weight_lost=round(weight_lost, 1),
-            daily_calorie_deficit=daily_calorie_deficit,
+            daily_calorie_deficit=user.daily_calorie_deficit or 500,
             streak_weeks=streak_weeks,
-            target_weight=target_weight or (current_weight - 5),
+            target_weight=target_weight,
             current_weight=current_weight
         )
 
     except Exception as e:
         logger.error(f"Ошибка в get_goal_progress: {e}")
         return GoalProgress(
-            completion_percentage=25.0,
-            weight_lost=-2.5,
+            completion_percentage=0.0,
+            weight_lost=0.0,
             daily_calorie_deficit=500,
-            streak_weeks=3,
-            target_weight=70.0,
-            current_weight=75.0
+            streak_weeks=0,
+            target_weight=user.target_weight or 90,
+            current_weight=user.weight or 95
         )
 
 
 async def calculate_streak_weeks(db: AsyncSession, user_id: int) -> int:
     """Рассчитать стрик недель с тренировками"""
     try:
-        # Ищем завершенные тренировки, сгруппированные по неделям
         workouts_result = await db.execute(
             select(Workout)
             .where(and_(
@@ -282,11 +282,10 @@ async def calculate_streak_weeks(db: AsyncSession, user_id: int) -> int:
         if not workouts:
             return 0
 
-        # Группируем по неделям и проверяем последовательность
         current_week = datetime.utcnow().isocalendar()[1]
         streak = 0
 
-        for week in range(current_week, current_week - 10, -1):  # проверяем 10 недель назад
+        for week in range(current_week, current_week - 10, -1):
             week_workouts = [w for w in workouts if w.scheduled_at.isocalendar()[1] == week]
             if week_workouts:
                 streak += 1
@@ -317,12 +316,10 @@ async def get_nutrition_plan(db: AsyncSession, user_id: int) -> NutritionPlan:
                 fat_percentage=30
             )
 
-        # Используем NutritionCalculator
         user_calories = NutritionCalculator.get_user_calorie_needs(user)
         user_goal = getattr(user, 'fitness_goal', 'weight_loss')
         macros = NutritionCalculator.calculate_macros(user_calories, user_goal)
 
-        # Расчет процентов для прогресс-баров
         total_calories = macros["protein"] * 4 + macros["carbs"] * 4 + macros["fat"] * 9
         protein_percentage = (macros["protein"] * 4 / total_calories) * 100
         carbs_percentage = (macros["carbs"] * 4 / total_calories) * 100
@@ -354,27 +351,22 @@ async def get_nutrition_plan(db: AsyncSession, user_id: int) -> NutritionPlan:
 @router.get("", response_model=ProgressResponse)
 async def get_progress(
         metric: ProgressMetric = ProgressMetric.WEIGHT,
-        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+        current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
     try:
-        # ИСПОЛЬЗУЕМ current_user вместо первого пользователя - ДОБАВИЛ ЗАЩИТУ
         user = current_user
         user_id = user.id
 
         if not user:
             return await get_demo_progress(metric)
 
-        # Получить данные для графика
         chart_data = await get_progress_chart_data(db, user_id, metric)
 
-        # Получить AI факт на основе графика
-        ai_fact = await generate_progress_fact(chart_data, metric, user)
+        ai_fact = await generate_progress_fact(chart_data, metric, user, db)
 
-        # Получить прогресс по цели
         goal_progress = await get_goal_progress(db, user_id, user)
 
-        # Получить план питания
         nutrition_plan = await get_nutrition_plan(db, user_id)
 
         return ProgressResponse(

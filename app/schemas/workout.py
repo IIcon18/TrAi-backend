@@ -82,3 +82,31 @@ class WorkoutPageResponse(BaseModel):
     quick_actions: List[QuickAction]
     calendar: List[CalendarEvent]
     reminder: str
+
+class AIWorkoutAnalysis(BaseModel):
+    workout_id: int
+    analysis: str
+    success: bool
+
+class ExerciseWithTips(BaseModel):
+    id: int
+    name: str
+    muscle_group: str
+    sets: int
+    reps: int
+    weight: float
+    intensity: str
+
+class AIWorkoutResponse(BaseModel):
+    id: int
+    name: str
+    muscle_group: str
+    scheduled_at: datetime
+    completed: bool
+    total_weight_lifted: float
+    ai_generated: bool
+    exercises: List[ExerciseWithTips]
+    description: Optional[str] = None
+
+    class Config:
+        from_attributes = True

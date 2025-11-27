@@ -6,38 +6,56 @@ import shutil
 import os
 
 from app.core.db import get_db
-from app.core.dependencies import get_current_user  # ← ДОБАВИЛ ЗАЩИТУ
+from app.core.dependencies import get_current_user
 from app.schemas.profile import (
     ProfileResponse, ProfileUpdate, TelegramConnectRequest,
-    TelegramConnectResponse, AIFact, AvatarUploadResponse
+    TelegramConnectResponse, AIFact, AvatarUploadResponse,
+    AITip, AITipsRefreshResponse
 )
 from app.models.user import User
 from app.models.goal import Goal
 from app.models.ai_recommendation import AIRecommendation
+from app.services.ai_service import ai_service
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
 
 @router.get("/", response_model=ProfileResponse)
 async def get_profile(
-    current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
-    db: AsyncSession = Depends(get_db)
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
 ):
-    """Получить профиль текущего пользователя"""
+    """Получить профиль текущего пользователя с AI советами"""
     try:
-        # ИСПОЛЬЗУЕМ current_user вместо запроса по ID - ДОБАВИЛ ЗАЩИТУ
         user = current_user
+        print(f"Getting profile for user: {user.email}")
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Получаем текущую цель пользователя
         current_goal = None
         if user.current_goal_id:
             goal_result = await db.execute(
                 select(Goal).where(Goal.id == user.current_goal_id)
             )
             current_goal = goal_result.scalar_one_or_none()
+
+        print("Generating AI tips...")
+
+        ai_tips = await ai_service.generate_profile_tips(
+            user_data={
+                "level": user.level.value if user.level else "beginner",
+                "goal": current_goal.type.value if current_goal else "maintenance"
+            },
+            progress_data={
+                "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
+                "recovery_trend": "стабильный"
+            }
+        )
+
+        print(f"Generated AI tips: {ai_tips}")
+
+        ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
 
         return ProfileResponse(
             id=user.id,
@@ -57,28 +75,28 @@ async def get_profile(
             preferred_training_days=user.preferred_training_days,
             current_goal=current_goal,
             ai_calorie_plan=user.ai_calorie_plan,
-            created_at=user.created_at
+            created_at=user.created_at,
+            ai_tips=ai_tips_models
         )
 
     except Exception as e:
+        print(f"Error in get_profile: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Ошибка при загрузке профиля: {str(e)}")
 
 
 @router.put("/", response_model=ProfileResponse)
 async def update_profile(
         profile_update: ProfileUpdate,
-        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+        current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
-    """Обновить данные профиля пользователя"""
+    """Обновить данные профиля пользователя с AI советами"""
     try:
-        # ИСПОЛЬЗУЕМ current_user вместо запроса - ДОБАВИЛ ЗАЩИТУ
         user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Обновляем только переданные поля
         update_data = profile_update.dict(exclude_unset=True)
 
         for field, value in update_data.items():
@@ -87,13 +105,25 @@ async def update_profile(
         await db.commit()
         await db.refresh(user)
 
-        # Получаем обновленную цель
         current_goal = None
         if user.current_goal_id:
             goal_result = await db.execute(
                 select(Goal).where(Goal.id == user.current_goal_id)
             )
             current_goal = goal_result.scalar_one_or_none()
+
+        ai_tips = await ai_service.generate_profile_tips(
+            user_data={
+                "level": user.level.value if user.level else "beginner",
+                "goal": current_goal.type.value if current_goal else "maintenance"
+            },
+            progress_data={
+                "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
+                "recovery_trend": "стабильный"
+            }
+        )
+
+        ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
 
         return ProfileResponse(
             id=user.id,
@@ -113,7 +143,8 @@ async def update_profile(
             preferred_training_days=user.preferred_training_days,
             current_goal=current_goal,
             ai_calorie_plan=user.ai_calorie_plan,
-            created_at=user.created_at
+            created_at=user.created_at,
+            ai_tips=ai_tips_models
         )
 
     except Exception as e:
@@ -121,37 +152,73 @@ async def update_profile(
         raise HTTPException(status_code=500, detail=f"Ошибка при обновлении профиля: {str(e)}")
 
 
-@router.post("/avatar", response_model=AvatarUploadResponse)
-async def upload_avatar(
-        file: UploadFile = File(...),
-        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+@router.post("/refresh-ai-tips", response_model=AITipsRefreshResponse)
+async def refresh_ai_tips(
+        current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
-    """Загрузить аватар пользователя"""
+    """Обновить AI советы (по кнопке refresh)"""
     try:
-        # ИСПОЛЬЗУЕМ current_user - ДОБАВИЛ ЗАЩИТУ
         user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Проверяем что файл является изображением
+        current_goal = None
+        if user.current_goal_id:
+            goal_result = await db.execute(
+                select(Goal).where(Goal.id == user.current_goal_id)
+            )
+            current_goal = goal_result.scalar_one_or_none()
+
+        ai_tips = await ai_service.generate_profile_tips(
+            user_data={
+                "level": user.level.value if user.level else "beginner",
+                "goal": current_goal.type.value if current_goal else "maintenance"
+            },
+            progress_data={
+                "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
+                "recovery_trend": "стабильный"
+            }
+        )
+
+        ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
+
+        return AITipsRefreshResponse(
+            success=True,
+            ai_tips=ai_tips_models,
+            message="AI советы успешно обновлены"
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при обновлении AI советов: {str(e)}")
+
+
+@router.post("/avatar", response_model=AvatarUploadResponse)
+async def upload_avatar(
+        file: UploadFile = File(...),
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    """Загрузить аватар пользователя"""
+    try:
+        user = current_user
+
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="Можно загружать только изображения")
 
-        # Создаем директорию если не существует
         os.makedirs("static/avatars", exist_ok=True)
 
-        # Генерируем имя файла
         file_extension = file.filename.split('.')[-1]
         filename = f"user_{user.id}.{file_extension}"
         file_path = f"static/avatars/{filename}"
 
-        # Сохраняем файл
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Обновляем аватар в базе
         user.avatar = f"/{file_path}"
         await db.commit()
 
@@ -168,18 +235,16 @@ async def upload_avatar(
 @router.post("/connect-telegram", response_model=TelegramConnectResponse)
 async def connect_telegram(
         telegram_data: TelegramConnectRequest,
-        current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
+        current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
     """Подключить Telegram аккаунт для уведомлений"""
     try:
-        # ИСПОЛЬЗУЕМ current_user - ДОБАВИЛ ЗАЩИТУ
         user = current_user
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        # Обновляем данные Telegram
         user.telegram_connected = True
         user.telegram_chat_id = telegram_data.telegram_chat_id
 
@@ -195,16 +260,17 @@ async def connect_telegram(
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Ошибка при подключении Telegram: {str(e)}")
 
+
 @router.get("/ai-facts", response_model=List[AIFact])
 async def get_ai_facts(
-    current_user: User = Depends(get_current_user),  # ← ДОБАВИЛ ЗАЩИТУ
-    db: AsyncSession = Depends(get_db)
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
 ):
     """Получить последние AI рекомендации для пользователя"""
     try:
         facts_result = await db.execute(
             select(AIRecommendation)
-            .where(AIRecommendation.user_id == current_user.id)  # ← ДОБАВИЛ ЗАЩИТУ - текущий пользователь!
+            .where(AIRecommendation.user_id == current_user.id)
             .order_by(AIRecommendation.created_at.desc())
             .limit(5)
         )

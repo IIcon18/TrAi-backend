@@ -20,7 +20,6 @@ async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Создаем оба токена
     access_token_expires = timedelta(minutes=auth_service.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth_service.create_access_token(
         data={"sub": str(authenticated_user.id)},
@@ -31,7 +30,6 @@ async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
         data={"sub": str(authenticated_user.id)}
     )
 
-    # Сохраняем refresh token в БД
     await auth_service.update_refresh_token(db, authenticated_user.id, refresh_token)
 
     return AuthResponse(
@@ -49,7 +47,6 @@ async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Создаем оба токена
     access_token_expires = timedelta(minutes=auth_service.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth_service.create_access_token(
         data={"sub": str(new_user.id)},
@@ -60,7 +57,6 @@ async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
         data={"sub": str(new_user.id)}
     )
 
-    # Сохраняем refresh token в БД
     await auth_service.update_refresh_token(db, new_user.id, refresh_token)
 
     return AuthResponse(
@@ -69,8 +65,6 @@ async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
         token_type="bearer"
     )
 
-
-# ДОБАВИТЬ новый эндпоинт:
 @router.post("/refresh", response_model=AuthResponse)
 async def refresh_token(request: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
     """Обновление access token с помощью refresh token"""
@@ -81,7 +75,6 @@ async def refresh_token(request: RefreshTokenRequest, db: AsyncSession = Depends
             detail="Invalid or expired refresh token"
         )
 
-    # Генерируем новый access token
     access_token_expires = timedelta(minutes=auth_service.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth_service.create_access_token(
         data={"sub": str(user.id)},
@@ -90,6 +83,6 @@ async def refresh_token(request: RefreshTokenRequest, db: AsyncSession = Depends
 
     return AuthResponse(
         access_token=access_token,
-        refresh_token=request.refresh_token,  # Можно обновить и refresh token если нужно
+        refresh_token=request.refresh_token,
         token_type="bearer"
     )

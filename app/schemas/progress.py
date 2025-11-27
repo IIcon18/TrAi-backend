@@ -1,7 +1,5 @@
-# app/schemas/progress.py
 from pydantic import BaseModel
-from datetime import datetime
-from typing import Optional, List, Literal
+from typing import Optional, List
 from enum import Enum
 
 class ProgressMetric(str, Enum):

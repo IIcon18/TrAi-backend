@@ -1,5 +1,6 @@
 from typing import Dict
 from app.models.user import User
+from app.services.ai_service import ai_service
 
 
 class NutritionCalculator:
@@ -17,6 +18,10 @@ class NutritionCalculator:
 
     @classmethod
     def calculate_bmr(cls, weight: float, height: float, age: int, gender: str) -> float:
+        weight = weight or 70
+        height = height or 170
+        age = age or 30
+
         if gender == "female":
             return 10 * weight + 6.25 * height - 5 * age - 161
         else:
@@ -51,9 +56,16 @@ class NutritionCalculator:
                 weight=user.weight,
                 height=user.height,
                 age=user.age,
-                gender=user.gender or "male"
+                gender=user.gender.value if user.gender else "male"
             )
-            tdee = cls.calculate_tdee(bmr, user.lifestyle)
+            tdee = cls.calculate_tdee(bmr, user.lifestyle.value)
             return int(tdee)
 
         return 2000
+
+    @staticmethod
+    async def analyze_dish_with_ai(dish_name: str, grams: float) -> Dict[str, float]:
+        """
+        Проанализировать блюдо с помощью AI и получить БЖУ
+        """
+        return await ai_service.analyze_dish_nutrition(dish_name, grams)

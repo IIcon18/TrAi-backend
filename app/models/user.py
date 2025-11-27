@@ -17,6 +17,11 @@ class LevelEnum(str, enum.Enum):
     professional = "professional"
 
 
+class GenderEnum(str, enum.Enum):
+    male = "male"
+    female = "female"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -24,6 +29,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     age = Column(Integer, nullable=False)
+    gender = Column(Enum(GenderEnum), nullable=True)
     lifestyle = Column(Enum(LifestyleEnum), nullable=False)
     height = Column(Integer, nullable=False)
     weight = Column(Float, nullable=False)

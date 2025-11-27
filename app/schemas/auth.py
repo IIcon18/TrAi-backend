@@ -1,15 +1,15 @@
 from pydantic import BaseModel, EmailStr
+from typing import Optional, List
 from enum import Enum
-from typing import Optional
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
 
 class LifestyleEnum(str, Enum):
     low = "low"
     medium = "medium"
     high = "high"
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
 
 class UserRegister(BaseModel):
     email: EmailStr
@@ -18,14 +18,15 @@ class UserRegister(BaseModel):
     lifestyle: LifestyleEnum
     height: int
     weight: float
+    initial_weight: Optional[float] = None
+    target_weight: Optional[float] = None
+    level: Optional[str] = None
+    weekly_training_goal: Optional[int] = None
 
 class AuthResponse(BaseModel):
     access_token: str
     refresh_token: str
-    token_type: str = "bearer"
+    token_type: str
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
-
-class TokenData(BaseModel):
-    user_id: Optional[str] = None
