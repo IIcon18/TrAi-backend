@@ -4,7 +4,7 @@ from sqlalchemy import select, func, and_
 from datetime import datetime, timedelta
 import logging
 import random
-from typing import List
+from typing import List, Dict, Any
 
 from app.core.db import get_db
 from app.schemas.dashboard import (
@@ -16,16 +16,42 @@ from app.models.user import User
 from app.models.workout import Workout, Exercise
 from app.models.post_workout_test import PostWorkoutTest
 from app.models.ai_recommendation import AIRecommendation
+from app.models.goal import Goal
 from app.services.nutrition_calculator import NutritionCalculator
+from app.services.ai_service import ai_service
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 logger = logging.getLogger(__name__)
 
 
+async def get_last_workout_info(db: AsyncSession, user_id: int) -> Dict[str, Any]:
+    """Получить информацию о последней тренировке"""
+    try:
+        workout_result = await db.execute(
+            select(Workout)
+            .where(and_(
+                Workout.user_id == user_id,
+                Workout.completed == True
+            ))
+            .order_by(Workout.scheduled_at.desc())
+        )
+        last_workout = workout_result.scalars().first()
+
+        if last_workout:
+            return {
+                'date': last_workout.scheduled_at.strftime("%d.%m"),
+                'type': last_workout.workout_type or 'тренировка',
+                'duration': getattr(last_workout, 'duration', 60)
+            }
+        return None
+    except Exception as e:
+        logger.error(f"Ошибка получения последней тренировки: {e}")
+        return None
+
+
 async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyChartData]:
     """Получить данные для графика энергии и настроения за последние 7 дней"""
     try:
-        # Получаем послетренировочные тесты за последнюю неделю
         tests_result = await db.execute(
             select(PostWorkoutTest)
             .where(PostWorkoutTest.user_id == user_id)
@@ -42,7 +68,6 @@ async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyCh
                 mood=test.mood
             ))
 
-        # Если данных нет - генерируем демо-данные
         if not chart_data:
             demo_dates = [(datetime.utcnow() - timedelta(days=i)).strftime("%d.%m") for i in range(6, -1, -1)]
             for date in demo_dates:
@@ -56,7 +81,6 @@ async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyCh
 
     except Exception as e:
         logger.error(f"Ошибка в get_energy_chart_data: {e}")
-        # Возвращаем демо-данные при ошибке
         demo_dates = [(datetime.utcnow() - timedelta(days=i)).strftime("%d.%m") for i in range(6, -1, -1)]
         return [
             EnergyChartData(
@@ -67,17 +91,15 @@ async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyCh
         ]
 
 
-async def get_weekly_progress(db: AsyncSession, user_id: int):
+async def get_weekly_progress(db: AsyncSession, user_id: int) -> Dict[str, Any]:
     """Получить прогресс тренировок за последнюю неделю"""
     try:
-        # Получаем плановое количество тренировок пользователя
         user_result = await db.execute(
             select(User.weekly_training_goal)
             .where(User.id == user_id)
         )
         planned_workouts = user_result.scalar() or 0
 
-        # Считаем завершенные тренировки за последние 7 дней
         week_ago = datetime.utcnow() - timedelta(days=7)
         completed_result = await db.execute(
             select(func.count(Workout.id))
@@ -89,7 +111,6 @@ async def get_weekly_progress(db: AsyncSession, user_id: int):
         )
         completed_workouts = completed_result.scalar() or 0
 
-        # Рассчитываем процент выполнения
         completion_rate = 0
         if planned_workouts > 0:
             completion_rate = round((completed_workouts / planned_workouts) * 100, 1)
@@ -125,9 +146,8 @@ async def get_user_nutrition_plan(db: AsyncSession, user_id: int) -> NutritionPl
                 fat=67
             )
 
-        # Рассчитываем калории и БЖУ на основе данных пользователя
         user_calories = NutritionCalculator.get_user_calorie_needs(user)
-        user_goal = getattr(user, 'fitness_goal', 'maintenance')
+        user_goal = getattr(user, 'level', 'maintenance')
         macros = NutritionCalculator.calculate_macros(user_calories, user_goal)
 
         return NutritionPlan(
@@ -152,7 +172,6 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
     try:
         weekly_data = await get_weekly_progress(db, user_id)
 
-        # Считаем общий поднятый вес за неделю (только базовые упражнения)
         week_ago = datetime.utcnow() - timedelta(days=7)
 
         exercises_result = await db.execute(
@@ -168,7 +187,6 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
         )
         exercises = exercises_result.scalars().all()
 
-        # Берем максимальный вес по каждому упражнению за период
         exercise_max_weights = {}
         for exercise in exercises:
             if exercise.exercise_type not in exercise_max_weights:
@@ -177,7 +195,6 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
 
         total_weight_lifted = sum(exercise_max_weights.values())
 
-        # Получаем средний показатель восстановления
         recovery_result = await db.execute(
             select(func.avg(PostWorkoutTest.recovery_score))
             .where(and_(
@@ -187,9 +204,8 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
         )
         recovery_score = recovery_result.scalar() or 75.0
 
-        # Рассчитываем прогресс по цели веса
         user_result = await db.execute(
-            select(User.initial_weight, User.weight, User.target_weight, User.fitness_goal)
+            select(User.initial_weight, User.weight, User.target_weight, User.level)
             .where(User.id == user_id)
         )
         user_data = user_result.first()
@@ -199,10 +215,9 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
         target_progress = "0 кг"
 
         if user_data and user_data.initial_weight and user_data.target_weight:
-            initial, current, target, goal = user_data
+            initial, current, target, level = user_data
             weight_change = round(initial - current, 1)
 
-            # Форматируем строку цели
             if target > initial:
                 target_progress = f"+{target - initial} кг"
             elif target < initial:
@@ -210,13 +225,12 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
             else:
                 target_progress = "0 кг"
 
-            # Рассчитываем процент выполнения цели
-            if target > initial:  # набор массы
+            if target > initial:
                 total_change_needed = target - initial
                 current_progress = current - initial
                 if total_change_needed > 0:
                     goal_progress = round((current_progress / total_change_needed) * 100, 1)
-            elif target < initial:  # похудение
+            elif target < initial:
                 total_change_needed = initial - target
                 current_progress = initial - current
                 if total_change_needed > 0:
@@ -226,7 +240,7 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
             planned_workouts=weekly_data["planned_workouts"],
             total_weight_lifted=round(total_weight_lifted, 1),
             recovery_score=round(recovery_score, 1),
-            goal_progress=max(0, min(100, goal_progress)),  # Ограничиваем 0-100%
+            goal_progress=max(0, min(100, goal_progress)),
             weight_change=weight_change,
             target_progress=target_progress
         )
@@ -241,42 +255,6 @@ async def get_quick_stats(db: AsyncSession, user_id: int) -> QuickStats:
             weight_change=0,
             target_progress="0 кг"
         )
-
-
-def generate_progress_fact(quick_stats: QuickStats, weekly_progress: WeeklyProgress, weight_change: float) -> str:
-    """Сгенерировать мотивирующий факт на основе статистики"""
-    facts = []
-
-    if weight_change > 0:
-        facts.append(f"Ты уже набрал {weight_change} кг мышечной массы! 💪")
-    elif weight_change < 0:
-        facts.append(f"Ты уже сбросил {abs(weight_change)} кг! Отличный результат! 🎉")
-
-    if weekly_progress.completion_rate >= 80:
-        facts.append("Ты выполняешь больше 80% запланированных тренировок - это супер! 🔥")
-    elif weekly_progress.completion_rate <= 30:
-        facts.append("Попробуй увеличить регулярность тренировок для лучших результатов 📈")
-
-    if quick_stats.recovery_score >= 80:
-        facts.append("Твое восстановление на высшем уровне! Продолжай в том же духе 🌟")
-    elif quick_stats.recovery_score <= 60:
-        facts.append("Обрати внимание на восстановление - это ключ к прогрессу 🛌")
-
-    if quick_stats.total_weight_lifted > 1000:
-        facts.append(f"На этой неделе ты поднял {int(quick_stats.total_weight_lifted)} кг - мощно! 💥")
-
-    # Общие мотивирующие фразы
-    general_facts = [
-        "Каждая тренировка приближает тебя к цели! 🎯",
-        "Твое тело становится сильнее с каждым днем 💫",
-        "Помни: прогресс - это марафон, а не спринт 🏃‍♂️",
-        "Ты создаешь лучшую версию себя каждый день 🌈"
-    ]
-
-    if facts:
-        return random.choice(facts)
-    else:
-        return random.choice(general_facts)
 
 
 def get_quick_actions() -> List[QuickAction]:
@@ -318,10 +296,76 @@ async def get_ai_recommendations(db: AsyncSession, user_id: int) -> List[AIRecom
         return []
 
 
+async def generate_ai_greeting(
+        db: AsyncSession,
+        user_id: int,
+        quick_stats: QuickStats,
+        weekly_progress: Dict[str, Any],
+        energy_chart: List[EnergyChartData]
+) -> str:
+    """Сгенерировать AI приветствие для дашборда"""
+    try:
+        # Получаем данные пользователя вместе с целью - БЕЗОПАСНЫЙ JOIN
+        user_result = await db.execute(
+            select(User.email, User.level, Goal.name)
+            .select_from(User)
+            .outerjoin(Goal, User.current_goal_id == Goal.id)
+            .where(User.id == user_id)
+        )
+        user_data = user_result.first()
+
+        if not user_data:
+            return "Привет! Начни тренировки чтобы увидеть свой прогресс! 🚀"
+
+        user_email, user_level, user_goal_name = user_data
+        user_name = user_email.split('@')[0] if user_email else "Спортсмен"
+
+        user_info = {
+            'name': user_name,
+            'level': user_level or 'beginner',
+            'goal': user_goal_name or 'general_fitness'
+        }
+
+        # Получаем информацию о последней тренировке
+        last_workout = await get_last_workout_info(db, user_id)
+
+        # Преобразуем energy chart data
+        energy_data = [
+            {'energy': item.energy, 'mood': item.mood, 'date': item.date}
+            for item in energy_chart
+        ]
+
+        print(f"🎯 Generating AI greeting for user: {user_name}")
+        print(f"🎯 User info: {user_info}")
+        print(f"🎯 Quick stats: {quick_stats.dict()}")
+        print(f"🎯 Weekly progress: {weekly_progress}")
+
+        # Генерируем AI приветствие
+        greeting = await ai_service.generate_dashboard_greeting(
+            user_data=user_info,
+            quick_stats=quick_stats.dict(),
+            weekly_progress=weekly_progress,
+            energy_data=energy_data,
+            last_workout=last_workout
+        )
+
+        print(f"🎯 AI Greeting generated: {greeting}")
+        return greeting
+
+    except Exception as e:
+        logger.error(f"Ошибка генерации AI приветствия: {e}")
+        user_result = await db.execute(
+            select(User.email).where(User.id == user_id)
+        )
+        user = user_result.first()
+        user_name = user.email.split('@')[0] if user else "Спортсмен"
+        return f"Привет, {user_name}! Рад видеть тебя! 💪"
+
+
 @router.get("", response_model=DashboardResponse)
 async def get_dashboard(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
 ):
     """Получить все данные для главного дашборда"""
     try:
@@ -335,9 +379,10 @@ async def get_dashboard(
         quick_actions = get_quick_actions()
         ai_recommendations = await get_ai_recommendations(db, user_id)
 
-        # Генерируем персонализированный факт прогресса
-        progress_fact = generate_progress_fact(quick_stats, WeeklyProgress(**weekly_progress_data),
-                                               quick_stats.weight_change)
+        # Генерируем AI приветствие
+        progress_fact = await generate_ai_greeting(
+            db, user_id, quick_stats, weekly_progress_data, energy_chart
+        )
 
         user_greeting = f"Привет, {current_user.email.split('@')[0]}!" if current_user.email else "Привет!"
 
@@ -354,19 +399,39 @@ async def get_dashboard(
 
     except Exception as e:
         logger.error(f"Ошибка при загрузке dashboard: {str(e)}")
-        return await get_demo_dashboard(current_user)
+        # При ошибке все равно пытаемся сгенерировать AI приветствие
+        try:
+            progress_fact = await generate_ai_greeting(
+                db, current_user.id,
+                QuickStats(
+                    planned_workouts=0,
+                    total_weight_lifted=0,
+                    recovery_score=75.0,
+                    goal_progress=0,
+                    weight_change=0,
+                    target_progress="0 кг"
+                ),
+                {"planned_workouts": 0, "completed_workouts": 0, "completion_rate": 0},
+                []
+            )
+        except:
+            progress_fact = "Начни тренировки чтобы увидеть свой прогресс! 🚀"
+
+        return await get_demo_dashboard(current_user, progress_fact)
 
 
-async def get_demo_dashboard(user: User = None) -> DashboardResponse:
+async def get_demo_dashboard(user: User = None, progress_fact: str = None) -> DashboardResponse:
     """Вернуть демо-данные дашборда для нового пользователя или при ошибках"""
     demo_dates = [(datetime.utcnow() - timedelta(days=i)).strftime("%d.%m") for i in range(6, -1, -1)]
 
     if user and user.email:
         user_greeting = f"Привет, {user.email.split('@')[0]}!"
-        progress_fact = f"{user.email.split('@')[0]}, начни тренировки чтобы увидеть свой прогресс! 🚀"
+        if not progress_fact:
+            progress_fact = f"{user.email.split('@')[0]}, начни тренировки чтобы увидеть свой прогресс! 🚀"
     else:
         user_greeting = "Привет!"
-        progress_fact = "Начни тренировки чтобы увидеть свой прогресс! 🚀"
+        if not progress_fact:
+            progress_fact = "Начни тренировки чтобы увидеть свой прогресс! 🚀"
 
     return DashboardResponse(
         user_greeting=user_greeting,

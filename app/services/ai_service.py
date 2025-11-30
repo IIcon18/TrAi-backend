@@ -12,7 +12,6 @@ class AIService:
         print(f"Groq AI Service initialized. API Key: {'PRESENT' if self.api_key else 'NOT FOUND'}")
 
     async def _make_groq_request(self, prompt: str) -> str:
-        """Базовый метод для запросов к Groq API"""
         if not self.api_key:
             raise Exception("AI сервис не настроен. Добавьте GROQ_API_KEY в .env файл")
 
@@ -109,6 +108,96 @@ class AIService:
                 analysis += f"Часто повторяющиеся упражнения: {', '.join(frequent_exercises[:3])}. Избегайте их повторения.\n"
 
         return analysis
+
+    async def generate_dashboard_greeting(
+            self,
+            user_data: Dict[str, Any],
+            quick_stats: Dict[str, Any],
+            weekly_progress: Dict[str, Any],
+            energy_data: List[Dict[str, Any]],
+            last_workout: Dict[str, Any] = None
+    ) -> str:
+        """Сгенерировать персонализированное приветствие и анализ дашборда"""
+
+        print(f"🎯 GENERATING DASHBOARD GREETING")
+        print(f"🎯 User: {user_data.get('name', 'Unknown')}")
+        print(f"🎯 Quick stats: {quick_stats}")
+        print(f"🎯 Weekly progress: {weekly_progress}")
+
+        # Анализируем последние данные энергии
+        energy_analysis = ""
+        if energy_data:
+            recent_energy = [item.get('energy', 0) for item in energy_data[-3:]]  # Последние 3 дня
+            avg_energy = sum(recent_energy) / len(recent_energy) if recent_energy else 0
+            energy_analysis = f"Средний уровень энергии: {avg_energy:.1f}/10"
+            if avg_energy >= 8:
+                energy_analysis += " - отлично! 💪"
+            elif avg_energy <= 5:
+                energy_analysis += " - нужно больше отдыхать 😴"
+
+        # Анализ последней тренировки
+        last_workout_analysis = ""
+        if last_workout:
+            workout_date = last_workout.get('date', '')
+            workout_type = last_workout.get('type', 'тренировка')
+            last_workout_analysis = f"Последняя {workout_type} была {workout_date}"
+
+        prompt = f"""
+        Ты - персональный фитнес-тренер. Проанализируй данные пользователя и создай короткое, мотивирующее приветствие для дашборда.
+
+        ДАННЫЕ ПОЛЬЗОВАТЕЛЯ:
+        - Имя: {user_data.get('name', 'Спортсмен')}
+        - Уровень: {user_data.get('level', 'beginner')}
+        - Цель: {user_data.get('goal', 'general_fitness')}
+
+        СТАТИСТИКА ЗА НЕДЕЛЮ:
+        - Запланировано тренировок: {weekly_progress.get('planned_workouts', 0)}
+        - Выполнено тренировок: {weekly_progress.get('completed_workouts', 0)}
+        - Процент выполнения: {weekly_progress.get('completion_rate', 0)}%
+        - Поднятый вес: {quick_stats.get('total_weight_lifted', 0)} кг
+        - Восстановление: {quick_stats.get('recovery_score', 0)}%
+        - Прогресс по цели: {quick_stats.get('goal_progress', 0)}%
+
+        ДОПОЛНИТЕЛЬНО:
+        {energy_analysis}
+        {last_workout_analysis}
+
+        ТРЕБОВАНИЯ К ПРИВЕТСТВИЮ:
+        - Будь кратким (1-2 предложения)
+        - Используй имя пользователя
+        - Выдели главное достижение за неделю
+        - Добавь мотивацию или рекомендацию
+        - Используй эмодзи для выразительности
+        - Будь позитивным и поддерживающим
+        - Учитывай уровень энергии и восстановление
+
+        ФОРМАТ: Только текст приветствия, без кавычек и дополнительного оформления.
+
+        ПРИМЕРЫ ХОРОШИХ ПРИВЕТСТВИЙ:
+        - "Привет, Алекс! На этой неделе ты выполнил 80% тренировок - отлично! 💪 Продолжай в том же духе!"
+        - "Привет, Мария! Твое восстановление на высоте (85%) - это ключ к прогрессу! 🌟"
+        - "Привет, Иван! Ты поднял 1500 кг за неделю - мощно! 🔥 Сфокусируйся на регулярности."
+        - "Привет, Анна! Уровень энергии стабильный, отлично! 😊 Давай добавим еще одну тренировку на неделе!"
+
+        СФОРМУЛИРУЙ ПРИВЕТСТВИЕ:
+        """
+
+        try:
+            response = await self._make_groq_request(prompt)
+
+            # Очистка ответа
+            response = response.strip()
+            if response.startswith('"') and response.endswith('"'):
+                response = response[1:-1]
+
+            print(f"🎯 AI Greeting Response: {response}")
+            return response
+
+        except Exception as e:
+            print(f"🎯 AI Greeting Error: {e}")
+            # Fallback приветствие
+            user_name = user_data.get('name', 'Спортсмен')
+            return f"Привет, {user_name}! Рад видеть тебя снова! 💪"
 
     async def generate_profile_tips(self, user_data: Dict[str, Any], progress_data: Dict[str, Any]) -> List[str]:
         """Сгенерировать персональные советы для профиля через Groq"""

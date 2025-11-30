@@ -6,16 +6,16 @@ from app.core.db import get_db
 from app.core.dependencies import get_current_user
 from app.schemas.goal import (
     GoalStep1, GoalStep2, GoalUpdate, GoalResponse,
-    GoalType, Level
+    Level
 )
 from app.models.user import User
-from app.models.goal import Goal
+from app.models.goal import Goal, GoalTypeEnum
 from app.services.nutrition_calculator import NutritionCalculator
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
 
-async def get_or_create_goal(db: AsyncSession, goal_type: GoalType) -> Goal:
+async def get_or_create_goal(db: AsyncSession, goal_type: GoalTypeEnum) -> Goal:
     """Найти или создать цель по типу"""
     goal_result = await db.execute(
         select(Goal).where(Goal.type == goal_type)
@@ -23,8 +23,16 @@ async def get_or_create_goal(db: AsyncSession, goal_type: GoalType) -> Goal:
     goal = goal_result.scalar_one_or_none()
 
     if not goal:
+        # Создаем читаемое название цели
+        goal_name_map = {
+            GoalTypeEnum.weight_loss: "Похудение",
+            GoalTypeEnum.muscle_gain: "Набор мышечной массы",
+            GoalTypeEnum.maintenance: "Поддержание формы",
+            GoalTypeEnum.endurance: "Развитие выносливости"
+        }
+
         goal = Goal(
-            name=goal_type.value.replace("_", " ").title(),
+            name=goal_name_map.get(goal_type, goal_type.value.replace("_", " ").title()),
             type=goal_type
         )
         db.add(goal)
@@ -99,7 +107,7 @@ async def update_goal_step2(
 
         return GoalResponse(
             id=user.id,
-            goal_type=goal.type if goal else GoalType.maintenance,
+            goal_type=goal.type if goal else GoalTypeEnum.maintenance,
             level=user.level,
             training_days_per_week=user.weekly_training_goal,
             training_days=user.preferred_training_days or [],
@@ -164,8 +172,8 @@ async def update_goal_complete(
 
 @router.get("/current", response_model=GoalResponse)
 async def get_current_goal(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
 ):
     """Получить текущую цель пользователя"""
     try:
@@ -183,7 +191,7 @@ async def get_current_goal(
 
         return GoalResponse(
             id=user.id,
-            goal_type=goal.type if goal else GoalType.maintenance,
+            goal_type=goal.type if goal else GoalTypeEnum.maintenance,
             level=user.level or Level.beginner,
             training_days_per_week=user.weekly_training_goal or 0,
             training_days=user.preferred_training_days or [],
