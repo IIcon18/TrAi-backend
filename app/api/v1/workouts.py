@@ -120,7 +120,11 @@ async def get_calendar_events(db: AsyncSession, user_id: int) -> List[CalendarEv
 # ENDPOINTS
 # ==========================
 
-@router.get("/page", response_model=WorkoutPageResponse)
+# ==========================
+# ENDPOINTS
+# ==========================
+
+@router.get("/page")
 async def get_workout_page(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -144,36 +148,28 @@ async def get_workout_page(
     )
     exercises = exercises_result.scalars().all()
 
-    workout_response = WorkoutResponse(
-        id=workout.id,
-        name=workout.name,
-        muscle_group=workout.muscle_group,
-        scheduled_at=workout.scheduled_at,
-        completed=workout.completed,
-        total_weight_lifted=workout.total_weight_lifted,
-        ai_generated=workout.ai_generated,
-        exercises=[{
-            "id": e.id,
-            "name": e.name,
-            "muscle_group": e.muscle_group,
-            "sets": e.sets,
-            "reps": e.reps,
-            "weight": e.weight,
-            "intensity": e.intensity
-        } for e in exercises]
-    )
+    workout_response = {
+        "id": workout.id,
+        "name": workout.name,
+        "muscle_group": workout.muscle_group,
+        "scheduled_at": workout.scheduled_at.isoformat(),
+        "completed": workout.completed,
+        "exercises": [
+            {
+                "id": e.id,
+                "name": e.name,
+                "sets": e.sets,
+                "reps": e.reps,
+                "weight": e.weight,
+                "intensity": e.intensity
+            } for e in exercises
+        ]
+    }
 
-    calendar = await get_calendar_events(db, current_user.id)
-
-    return WorkoutPageResponse(
-        workout=workout_response,
-        quick_actions=get_quick_actions(),
-        calendar=calendar,
-        reminder="Готов к тренировке 💪"
-    )
+    return {"workout": workout_response}
 
 
-@router.post("/generate-ai", response_model=AIWorkoutResponse)
+@router.post("/generate-ai")
 async def generate_ai_workout(
     request: AIWorkoutRequest,
     current_user: User = Depends(get_current_user),
@@ -182,7 +178,7 @@ async def generate_ai_workout(
     try:
         ai_data = await ai_service.generate_ai_workout(
             user_data={
-                "level": current_user.level.value if current_user.level else "beginner",
+                "lifestyle": current_user.lifestyle.value if current_user.lifestyle else "low",
                 "gender": current_user.gender.value if current_user.gender else "not_specified",
                 "age": current_user.age,
                 "goal": "general_fitness"
@@ -206,7 +202,11 @@ async def generate_ai_workout(
     await db.commit()
     await db.refresh(workout)
 
-    exercises = []
+    BASE_WEIGHTS = {"low": 20, "medium": 40, "high": 60}
+    user_lifestyle = current_user.lifestyle.value if current_user.lifestyle else "low"
+    base_weight = BASE_WEIGHTS.get(user_lifestyle, 20)
+
+    exercises_list = []
     for ex in ai_data["exercises"]:
         exercise = Exercise(
             workout_id=workout.id,
@@ -214,35 +214,31 @@ async def generate_ai_workout(
             muscle_group=ex["muscle_group"],
             sets=ex["sets"],
             reps=ex["reps"],
-            weight=0,
+            weight=base_weight,
             intensity=ex["intensity"],
             exercise_type="other"
         )
         db.add(exercise)
         await db.flush()
 
-        exercises.append(ExerciseWithTips(
-            id=exercise.id,
-            name=exercise.name,
-            muscle_group=exercise.muscle_group,
-            sets=exercise.sets,
-            reps=exercise.reps,
-            weight=exercise.weight,
-            intensity=exercise.intensity,
-            tips=ex.get("reason", ""),
-            weight_suggestion=""
-        ))
+        exercises_list.append({
+            "id": exercise.id,
+            "name": exercise.name,
+            "sets": exercise.sets,
+            "reps": exercise.reps,
+            "weight": exercise.weight,
+            "intensity": exercise.intensity
+        })
 
     await db.commit()
 
-    return AIWorkoutResponse(
-        id=workout.id,
-        name=workout.name,
-        muscle_group=workout.muscle_group,
-        scheduled_at=workout.scheduled_at,
-        completed=workout.completed,
-        total_weight_lifted=workout.total_weight_lifted,
-        ai_generated=True,
-        exercises=exercises,
-        description=ai_data.get("description", "")
-    )
+    workout_response = {
+        "id": workout.id,
+        "name": workout.name,
+        "muscle_group": workout.muscle_group,
+        "scheduled_at": workout.scheduled_at.isoformat(),
+        "completed": workout.completed,
+        "exercises": exercises_list
+    }
+
+    return workout_response
