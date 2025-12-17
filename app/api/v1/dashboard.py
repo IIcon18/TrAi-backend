@@ -20,7 +20,7 @@ from app.models.goal import Goal
 from app.services.nutrition_calculator import NutritionCalculator
 from app.services.ai_service import ai_service
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+router = APIRouter(tags=["dashboard"])
 logger = logging.getLogger(__name__)
 
 

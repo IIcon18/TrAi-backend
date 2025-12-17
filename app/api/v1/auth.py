@@ -6,7 +6,7 @@ from app.core.db import get_db
 from app.services.auth_service import auth_service
 from app.schemas.auth import UserLogin, UserRegister, AuthResponse, RefreshTokenRequest
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 
 @router.post("/login", response_model=AuthResponse)
