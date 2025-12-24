@@ -10,6 +10,7 @@ from app.core.dependencies import get_current_user
 from app.schemas.progress import (
     ProgressResponse, ProgressChartData, GoalProgress, NutritionPlan, ProgressMetric
 )
+from app.models.post_workout_test import PostWorkoutTest
 from app.models.user import User
 from app.models.progress import Progress
 from app.models.workout import Workout
@@ -19,6 +20,52 @@ from app.services.ai_service import ai_service
 
 router = APIRouter(prefix="/progress", tags=["progress"])
 logger = logging.getLogger(__name__)
+
+
+async def get_activity_chart_data(
+        db: AsyncSession,
+        user_id: int
+) -> List[dict]:
+    """Получить данные для графика активности (mood/energy) за последние 7 дней"""
+    try:
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        tests_result = await db.execute(
+            select(PostWorkoutTest)
+            .where(and_(
+                PostWorkoutTest.user_id == user_id,
+                PostWorkoutTest.created_at >= week_ago
+            ))
+            .order_by(PostWorkoutTest.created_at.asc())
+        )
+        tests = tests_result.scalars().all()
+
+        activity_data = []
+        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+        for test in tests:
+            day_name = day_names[test.created_at.weekday()]
+            activity_data.append({
+                "day": day_name,
+                "mood": test.mood,
+                "energy": test.energy_level
+            })
+
+        # Если данных нет, возвращаем демо
+        if not activity_data:
+            return [
+                {"day": day_names[i], "mood": random.randint(6, 10), "energy": random.randint(6, 10)}
+                for i in range(7)
+            ]
+
+        return activity_data
+
+    except Exception as e:
+        logger.error(f"Ошибка в get_activity_chart_data: {e}")
+        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        return [
+            {"day": day_names[i], "mood": random.randint(6, 10), "energy": random.randint(6, 10)}
+            for i in range(7)
+        ]
 
 
 async def get_progress_chart_data(
@@ -348,63 +395,66 @@ async def get_nutrition_plan(db: AsyncSession, user_id: int) -> NutritionPlan:
         )
 
 
+# Убираем все демо-данные
 @router.get("", response_model=ProgressResponse)
 async def get_progress(
         metric: ProgressMetric = ProgressMetric.WEIGHT,
         current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
-    try:
-        user = current_user
-        user_id = user.id
+    user = current_user
+    user_id = user.id
 
-        if not user:
-            return await get_demo_progress(metric)
-
-        chart_data = await get_progress_chart_data(db, user_id, metric)
-
-        ai_fact = await generate_progress_fact(chart_data, metric, user, db)
-
-        goal_progress = await get_goal_progress(db, user_id, user)
-
-        nutrition_plan = await get_nutrition_plan(db, user_id)
-
+    if not user:
         return ProgressResponse(
             selected_metric=metric.value,
-            chart_data=chart_data,
-            ai_fact=ai_fact,
-            goal_progress=goal_progress,
-            nutrition_plan=nutrition_plan
+            chart_data=[],
+            ai_fact="",
+            goal_progress=GoalProgress(
+                completion_percentage=0.0,
+                weight_lost=0.0,
+                daily_calorie_deficit=0,
+                streak_weeks=0,
+                target_weight=0.0,
+                current_weight=0.0
+            ),
+            nutrition_plan=NutritionPlan(
+                calories=0,
+                protein=0,
+                carbs=0,
+                fat=0,
+                protein_percentage=0.0,
+                carbs_percentage=0.0,
+                fat_percentage=0.0
+            )
         )
 
-    except Exception as e:
-        logger.error(f"Ошибка при загрузке прогресса: {str(e)}")
-        return await get_demo_progress(metric)
-
-
-async def get_demo_progress(metric: ProgressMetric) -> ProgressResponse:
-    """Демо-данные для разработки"""
-    chart_data = await generate_demo_chart_data(metric)
+    chart_data = await get_progress_chart_data(db, user_id, metric) or []
+    ai_fact = await generate_progress_fact(chart_data, metric, user, db) if chart_data else ""
+    goal_progress = await get_goal_progress(db, user_id, user) if chart_data else GoalProgress(
+        completion_percentage=0.0, weight_lost=0.0, daily_calorie_deficit=0, streak_weeks=0, target_weight=0.0, current_weight=0.0
+    )
+    nutrition_plan = await get_nutrition_plan(db, user_id) if chart_data else NutritionPlan(
+        calories=0, protein=0, carbs=0, fat=0, protein_percentage=0.0, carbs_percentage=0.0, fat_percentage=0.0
+    )
 
     return ProgressResponse(
         selected_metric=metric.value,
         chart_data=chart_data,
-        ai_fact="Демо-режим: это пример AI анализа вашего прогресса! 📊",
-        goal_progress=GoalProgress(
-            completion_percentage=45.0,
-            weight_lost=-3.6,
-            daily_calorie_deficit=500,
-            streak_weeks=4,
-            target_weight=70.0,
-            current_weight=76.4
-        ),
-        nutrition_plan=NutritionPlan(
-            calories=1850,
-            protein=140,
-            carbs=185,
-            fat=62,
-            protein_percentage=30.3,
-            carbs_percentage=40.0,
-            fat_percentage=29.7
-        )
+        ai_fact=ai_fact,
+        goal_progress=goal_progress,
+        nutrition_plan=nutrition_plan
     )
+
+
+@router.get("/activity")
+async def get_activity_data(
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    try:
+        activity_data = await get_activity_chart_data(db, current_user.id)
+        return {"activityData": activity_data or []}
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке активности: {e}")
+        return {"activityData": []}

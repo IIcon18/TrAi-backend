@@ -26,6 +26,8 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      RESET_DATABASE: "false"
     volumes:
       - ./:/app
 

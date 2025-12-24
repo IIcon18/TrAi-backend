@@ -175,15 +175,31 @@ async def generate_ai_workout(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # Небольшая ручная валидация/нормализация группы мышц,
+    # чтобы поддержать старые значения с фронта и избежать 422 от Pydantic
+    raw_group = request.muscle_group
+    aliases = {
+        "upper_push": "upper_body_push",
+        "upper_pull": "upper_body_pull",
+        "core": "core_stability",
+        "lower": "lower_body",
+    }
+    normalized_group = aliases.get(raw_group, raw_group)
+
+    allowed_groups = {"upper_body_push", "upper_body_pull", "core_stability", "lower_body"}
+    if normalized_group not in allowed_groups:
+        raise HTTPException(status_code=400, detail=f"Invalid muscle_group: {raw_group}")
+
     try:
         ai_data = await ai_service.generate_ai_workout(
             user_data={
                 "lifestyle": current_user.lifestyle.value if current_user.lifestyle else "low",
                 "gender": current_user.gender.value if current_user.gender else "not_specified",
                 "age": current_user.age,
-                "goal": "general_fitness"
+                "goal": "general_fitness",
+                "level": current_user.level.value if getattr(current_user, "level", None) else "beginner",
             },
-            muscle_group=request.muscle_group.value,
+            muscle_group=normalized_group,
             workout_history=[]
         )
     except Exception:
@@ -192,7 +208,8 @@ async def generate_ai_workout(
     workout = Workout(
         user_id=current_user.id,
         name=ai_data["name"],
-        muscle_group=request.muscle_group.value,
+        # сохраняем уже нормализованную группу мышц
+        muscle_group=normalized_group,
         scheduled_at=datetime.utcnow(),
         completed=False,
         ai_generated=True,
