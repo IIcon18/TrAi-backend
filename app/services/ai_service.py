@@ -199,6 +199,106 @@ class AIService:
             user_name = user_data.get('name', 'Спортсмен')
             return f"Привет, {user_name}! Рад видеть тебя снова! 💪"
 
+    async def generate_last_training_message(self, last_workout: Dict[str, Any] = None) -> str:
+        """Сгенерировать короткое сообщение о последней тренировке"""
+        if not last_workout:
+            return "Начни свою первую тренировку! 💪"
+        
+        workout_date = last_workout.get('date', '')
+        workout_type = last_workout.get('type', 'тренировка')
+        duration = last_workout.get('duration', 60)
+        
+        prompt = f"""
+        Создай ОДНО короткое предложение (максимум 10 слов) о последней тренировке пользователя.
+        
+        ДАННЫЕ:
+        - Дата: {workout_date}
+        - Тип: {workout_type}
+        - Длительность: {duration} минут
+        
+        ТРЕБОВАНИЯ:
+        - Только одно короткое предложение
+        - Максимум 10 слов
+        - Будь мотивирующим и позитивным
+        - Используй эмодзи (1-2 штуки)
+        - Формат: "Your last training was [описание]"
+        
+        ПРИМЕРЫ:
+        - "Your last training was upper body push yesterday 💪"
+        - "Your last training was 60 min workout 2 days ago 🔥"
+        - "Your last training was leg day on Monday 🦵"
+        
+        СФОРМУЛИРУЙ СООБЩЕНИЕ:
+        """
+        
+        try:
+            response = await self._make_groq_request(prompt)
+            response = response.strip()
+            if response.startswith('"') and response.endswith('"'):
+                response = response[1:-1]
+            # Ограничиваем длину
+            words = response.split()
+            if len(words) > 12:
+                response = ' '.join(words[:12])
+            return response
+        except Exception as e:
+            print(f"AI Last Training Message Error: {e}")
+            return f"Your last training was {workout_type} on {workout_date} 💪"
+
+    async def generate_weekly_progress_message(
+        self, 
+        weekly_progress: Dict[str, Any],
+        quick_stats: Dict[str, Any]
+    ) -> str:
+        """Сгенерировать короткое сообщение под прогресс-баром"""
+        completed = weekly_progress.get('completed_workouts', 0)
+        planned = weekly_progress.get('planned_workouts', 0)
+        completion_rate = weekly_progress.get('completion_rate', 0)
+        weight_lifted = quick_stats.get('total_weight_lifted', 0)
+        
+        prompt = f"""
+        Создай ОДНО короткое мотивирующее предложение (максимум 8 слов) о прогрессе тренировок за неделю.
+        
+        ДАННЫЕ:
+        - Выполнено тренировок: {completed} из {planned}
+        - Процент выполнения: {completion_rate}%
+        - Поднятый вес: {weight_lifted} кг
+        
+        ТРЕБОВАНИЯ:
+        - Только одно короткое предложение
+        - Максимум 8 слов
+        - Будь мотивирующим
+        - Используй эмодзи (1 штука)
+        - Если прогресс хороший - похвали, если плохой - мотивируй
+        
+        ПРИМЕРЫ:
+        - "Отличная неделя! Продолжай в том же духе! 🔥"
+        - "Хороший прогресс! Еще немного усилий! 💪"
+        - "Ты на правильном пути! Так держать! ⚡"
+        - "Добавь еще одну тренировку на этой неделе! 🎯"
+        
+        СФОРМУЛИРУЙ СООБЩЕНИЕ:
+        """
+        
+        try:
+            response = await self._make_groq_request(prompt)
+            response = response.strip()
+            if response.startswith('"') and response.endswith('"'):
+                response = response[1:-1]
+            # Ограничиваем длину
+            words = response.split()
+            if len(words) > 10:
+                response = ' '.join(words[:10])
+            return response
+        except Exception as e:
+            print(f"AI Weekly Progress Message Error: {e}")
+            if completion_rate >= 80:
+                return "Отличная неделя! Продолжай! 🔥"
+            elif completion_rate >= 50:
+                return "Хороший прогресс! Так держать! 💪"
+            else:
+                return "Добавь еще тренировку на этой неделе! 🎯"
+
     async def generate_profile_tips(self, user_data: Dict[str, Any], progress_data: Dict[str, Any]) -> List[str]:
         """Сгенерировать персональные советы для профиля через Groq"""
         print(f"Generating profile tips for user: {user_data}")

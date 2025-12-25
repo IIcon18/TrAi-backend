@@ -42,10 +42,15 @@ async def get_profile(
 
         print("Generating AI tips...")
 
+        # Безопасное получение типа цели
+        goal_type = "maintenance"
+        if current_goal and hasattr(current_goal, 'type'):
+            goal_type = current_goal.type.value if hasattr(current_goal.type, 'value') else str(current_goal.type)
+
         ai_tips = await ai_service.generate_profile_tips(
             user_data={
                 "level": user.level.value if user.level else "beginner",
-                "goal": current_goal.type.value if current_goal else "maintenance"
+                "goal": goal_type
             },
             progress_data={
                 "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
@@ -171,10 +176,15 @@ async def refresh_ai_tips(
             )
             current_goal = goal_result.scalar_one_or_none()
 
+        # Безопасное получение типа цели
+        goal_type = "maintenance"
+        if current_goal and hasattr(current_goal, 'type'):
+            goal_type = current_goal.type.value if hasattr(current_goal.type, 'value') else str(current_goal.type)
+
         ai_tips = await ai_service.generate_profile_tips(
             user_data={
                 "level": user.level.value if user.level else "beginner",
-                "goal": current_goal.type.value if current_goal else "maintenance"
+                "goal": goal_type
             },
             progress_data={
                 "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",

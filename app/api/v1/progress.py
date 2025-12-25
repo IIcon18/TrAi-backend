@@ -8,13 +8,14 @@ from typing import List
 from app.core.db import get_db
 from app.core.dependencies import get_current_user
 from app.schemas.progress import (
-    ProgressResponse, ProgressChartData, GoalProgress, NutritionPlan, ProgressMetric
+    ProgressResponse, ProgressChartData, GoalProgress, NutritionPlan, ProgressMetric, CurrentNutrition
 )
 from app.models.post_workout_test import PostWorkoutTest
 from app.models.user import User
 from app.models.progress import Progress
 from app.models.workout import Workout
 from app.models.goal import Goal
+from app.models.meal import Meal, Dish
 from app.services.nutrition_calculator import NutritionCalculator
 from app.services.ai_service import ai_service
 
@@ -346,6 +347,59 @@ async def calculate_streak_weeks(db: AsyncSession, user_id: int) -> int:
         return random.randint(1, 5)
 
 
+async def get_current_nutrition_consumption(db: AsyncSession, user_id: int) -> dict:
+    """Получить текущее потребление БЖУ за сегодня"""
+    try:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # Получаем все meals за сегодня
+        meals_result = await db.execute(
+            select(Meal)
+            .where(
+                and_(
+                    Meal.user_id == user_id,
+                    Meal.eaten_at >= today_start,
+                    Meal.eaten_at <= today_end
+                )
+            )
+        )
+        meals = meals_result.scalars().all()
+        
+        total_protein = 0.0
+        total_carbs = 0.0
+        total_fat = 0.0
+        total_calories = 0.0
+        
+        # Суммируем БЖУ из всех dishes всех meals за сегодня
+        for meal in meals:
+            dishes_result = await db.execute(
+                select(Dish).where(Dish.meal_id == meal.id)
+            )
+            dishes = dishes_result.scalars().all()
+            
+            for dish in dishes:
+                total_protein += dish.protein or 0
+                total_carbs += dish.carbs or 0
+                total_fat += dish.fat or 0
+                total_calories += dish.calories or 0
+        
+        return {
+            "protein": round(total_protein, 1),
+            "carbs": round(total_carbs, 1),
+            "fat": round(total_fat, 1),
+            "calories": round(total_calories, 1)
+        }
+    except Exception as e:
+        logger.error(f"Ошибка в get_current_nutrition_consumption: {e}")
+        return {
+            "protein": 0.0,
+            "carbs": 0.0,
+            "fat": 0.0,
+            "calories": 0.0
+        }
+
+
 async def get_nutrition_plan(db: AsyncSession, user_id: int) -> NutritionPlan:
     """Получить план питания"""
     try:
@@ -426,6 +480,12 @@ async def get_progress(
                 protein_percentage=0.0,
                 carbs_percentage=0.0,
                 fat_percentage=0.0
+            ),
+            current_nutrition=CurrentNutrition(
+                calories=0.0,
+                protein=0.0,
+                carbs=0.0,
+                fat=0.0
             )
         )
 
@@ -437,13 +497,16 @@ async def get_progress(
     nutrition_plan = await get_nutrition_plan(db, user_id) if chart_data else NutritionPlan(
         calories=0, protein=0, carbs=0, fat=0, protein_percentage=0.0, carbs_percentage=0.0, fat_percentage=0.0
     )
+    current_nutrition_data = await get_current_nutrition_consumption(db, user_id)
+    current_nutrition = CurrentNutrition(**current_nutrition_data)
 
     return ProgressResponse(
         selected_metric=metric.value,
         chart_data=chart_data,
         ai_fact=ai_fact,
         goal_progress=goal_progress,
-        nutrition_plan=nutrition_plan
+        nutrition_plan=nutrition_plan,
+        current_nutrition=current_nutrition
     )
 
 

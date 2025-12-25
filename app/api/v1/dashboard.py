@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 from app.core.db import get_db
 from app.schemas.dashboard import (
     DashboardResponse, WeeklyProgress, QuickStats, NutritionPlan,
-    AIRecommendationRead, EnergyChartData, QuickAction
+    CurrentNutrition, AIRecommendationRead, EnergyChartData, QuickAction
 )
 from app.core.dependencies import get_current_user
 from app.models.user import User
@@ -17,6 +17,7 @@ from app.models.workout import Workout, Exercise
 from app.models.post_workout_test import PostWorkoutTest
 from app.models.ai_recommendation import AIRecommendation
 from app.models.goal import Goal
+from app.models.meal import Meal, Dish
 from app.services.nutrition_calculator import NutritionCalculator
 from app.services.ai_service import ai_service
 
@@ -128,6 +129,59 @@ async def get_weekly_progress(db: AsyncSession, user_id: int) -> Dict[str, Any]:
             "completed_workouts": 0,
             "completion_rate": 0
         }
+
+
+async def get_current_nutrition_consumption(db: AsyncSession, user_id: int) -> CurrentNutrition:
+    """Получить текущее потребление БЖУ за сегодня"""
+    try:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # Получаем все meals за сегодня
+        meals_result = await db.execute(
+            select(Meal)
+            .where(
+                and_(
+                    Meal.user_id == user_id,
+                    Meal.eaten_at >= today_start,
+                    Meal.eaten_at <= today_end
+                )
+            )
+        )
+        meals = meals_result.scalars().all()
+        
+        total_protein = 0.0
+        total_carbs = 0.0
+        total_fat = 0.0
+        total_calories = 0.0
+        
+        # Суммируем БЖУ из всех dishes всех meals за сегодня
+        for meal in meals:
+            dishes_result = await db.execute(
+                select(Dish).where(Dish.meal_id == meal.id)
+            )
+            dishes = dishes_result.scalars().all()
+            
+            for dish in dishes:
+                total_protein += dish.protein or 0
+                total_carbs += dish.carbs or 0
+                total_fat += dish.fat or 0
+                total_calories += dish.calories or 0
+        
+        return CurrentNutrition(
+            protein=round(total_protein, 1),
+            carbs=round(total_carbs, 1),
+            fat=round(total_fat, 1),
+            calories=round(total_calories, 1)
+        )
+    except Exception as e:
+        logger.error(f"Ошибка в get_current_nutrition_consumption: {e}")
+        return CurrentNutrition(
+            protein=0.0,
+            carbs=0.0,
+            fat=0.0,
+            calories=0.0
+        )
 
 
 async def get_user_nutrition_plan(db: AsyncSession, user_id: int) -> NutritionPlan:
@@ -375,13 +429,30 @@ async def get_dashboard(
         energy_chart = await get_energy_chart_data(db, user_id)
         weekly_progress_data = await get_weekly_progress(db, user_id)
         nutrition_plan = await get_user_nutrition_plan(db, user_id)
+        current_nutrition = await get_current_nutrition_consumption(db, user_id)
         quick_stats = await get_quick_stats(db, user_id)
         quick_actions = get_quick_actions()
         ai_recommendations = await get_ai_recommendations(db, user_id)
 
-        # Генерируем AI приветствие
+        # Получаем информацию о последней тренировке
+        last_workout = await get_last_workout_info(db, user_id)
+
+        # Генерируем AI сообщения
         progress_fact = await generate_ai_greeting(
             db, user_id, quick_stats, weekly_progress_data, energy_chart
+        )
+        last_training_message = await ai_service.generate_last_training_message(last_workout)
+        
+        # Преобразуем QuickStats в словарь для AI функции
+        quick_stats_dict = {
+            'total_weight_lifted': quick_stats.total_weight_lifted,
+            'recovery_score': quick_stats.recovery_score,
+            'goal_progress': quick_stats.goal_progress,
+            'weight_change': quick_stats.weight_change
+        }
+        weekly_progress_message = await ai_service.generate_weekly_progress_message(
+            weekly_progress_data, 
+            quick_stats_dict
         )
 
         user_greeting = f"Привет, {current_user.email.split('@')[0]}!" if current_user.email else "Привет!"
@@ -389,9 +460,12 @@ async def get_dashboard(
         return DashboardResponse(
             user_greeting=user_greeting,
             progress_fact=progress_fact,
+            last_training_message=last_training_message,
+            weekly_progress_message=weekly_progress_message,
             energy_chart=energy_chart,
             weekly_progress=WeeklyProgress(**weekly_progress_data),
             nutrition_plan=nutrition_plan,
+            current_nutrition=current_nutrition,
             quick_stats=quick_stats,
             quick_actions=quick_actions,
             ai_recommendations=ai_recommendations
@@ -436,6 +510,8 @@ async def get_demo_dashboard(user: User = None, progress_fact: str = None) -> Da
     return DashboardResponse(
         user_greeting=user_greeting,
         progress_fact=progress_fact,
+        last_training_message="Your last training was upper body push yesterday 💪",
+        weekly_progress_message="Отличная неделя! Продолжай в том же духе! 🔥",
         energy_chart=[
             EnergyChartData(
                 date=date,
@@ -453,6 +529,12 @@ async def get_demo_dashboard(user: User = None, progress_fact: str = None) -> Da
             protein=150,
             carbs=200,
             fat=67
+        ),
+        current_nutrition=CurrentNutrition(
+            calories=0.0,
+            protein=0.0,
+            carbs=0.0,
+            fat=0.0
         ),
         quick_stats=QuickStats(
             planned_workouts=4,

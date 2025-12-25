@@ -30,9 +30,16 @@ class NutritionPlan(BaseModel):
     carbs_percentage: float
     fat_percentage: float
 
+class CurrentNutrition(BaseModel):
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+
 class ProgressResponse(BaseModel):
     selected_metric: str
     chart_data: List[ProgressChartData]
     ai_fact: str
     goal_progress: GoalProgress
     nutrition_plan: NutritionPlan
+    current_nutrition: CurrentNutrition

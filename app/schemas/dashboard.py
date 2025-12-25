@@ -27,6 +27,12 @@ class NutritionPlan(BaseModel):
     carbs: int
     fat: int
 
+class CurrentNutrition(BaseModel):
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+
 class QuickStats(BaseModel):
     planned_workouts: int
     total_weight_lifted: float
@@ -42,9 +48,12 @@ class QuickAction(BaseModel):
 class DashboardResponse(BaseModel):
     user_greeting: str
     progress_fact: str
+    last_training_message: str
+    weekly_progress_message: str
     energy_chart: List[EnergyChartData]
     weekly_progress: WeeklyProgress
     nutrition_plan: NutritionPlan
+    current_nutrition: CurrentNutrition
     quick_stats: QuickStats
     quick_actions: List[QuickAction]
     ai_recommendations: List[AIRecommendationRead]
