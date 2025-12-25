@@ -124,7 +124,6 @@ class AIService:
         print(f"🎯 Quick stats: {quick_stats}")
         print(f"🎯 Weekly progress: {weekly_progress}")
 
-        # Анализируем последние данные энергии
         energy_analysis = ""
         if energy_data:
             recent_energy = [item.get('energy', 0) for item in energy_data[-3:]]  # Последние 3 дня
@@ -135,7 +134,6 @@ class AIService:
             elif avg_energy <= 5:
                 energy_analysis += " - нужно больше отдыхать 😴"
 
-        # Анализ последней тренировки
         last_workout_analysis = ""
         if last_workout:
             workout_date = last_workout.get('date', '')
@@ -285,7 +283,6 @@ class AIService:
             response = response.strip()
             if response.startswith('"') and response.endswith('"'):
                 response = response[1:-1]
-            # Ограничиваем длину
             words = response.split()
             if len(words) > 10:
                 response = ' '.join(words[:10])
