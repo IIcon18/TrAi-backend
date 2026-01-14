@@ -10,7 +10,7 @@ from app.core.dependencies import get_current_user
 from app.schemas.profile import (
     ProfileResponse, ProfileUpdate, TelegramConnectRequest,
     TelegramConnectResponse, AIFact, AvatarUploadResponse,
-    AITip, AITipsRefreshResponse
+    AITip, AITipsRefreshResponse, ProfileSetupRequest, ProfileSetupResponse
 )
 from app.models.user import User
 from app.models.goal import Goal
@@ -40,33 +40,38 @@ async def get_profile(
             )
             current_goal = goal_result.scalar_one_or_none()
 
-        print("Generating AI tips...")
+        ai_tips_models = []
 
-        # Безопасное получение типа цели
-        goal_type = "maintenance"
-        if current_goal and hasattr(current_goal, 'type'):
-            goal_type = current_goal.type.value if hasattr(current_goal.type, 'value') else str(current_goal.type)
+        # Генерируем AI tips только если профиль заполнен
+        if user.profile_completed:
+            print("Generating AI tips...")
 
-        ai_tips = await ai_service.generate_profile_tips(
-            user_data={
-                "level": user.level.value if user.level else "beginner",
-                "goal": goal_type
-            },
-            progress_data={
-                "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
-                "recovery_trend": "стабильный"
-            }
-        )
+            goal_type = "maintenance"
+            if current_goal and hasattr(current_goal, 'type'):
+                goal_type = current_goal.type.value if hasattr(current_goal.type, 'value') else str(current_goal.type)
 
-        print(f"Generated AI tips: {ai_tips}")
+            ai_tips = await ai_service.generate_profile_tips(
+                user_data={
+                    "level": user.level.value if user.level else "beginner",
+                    "goal": goal_type
+                },
+                progress_data={
+                    "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
+                    "recovery_trend": "стабильный"
+                }
+            )
 
-        ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
+            print(f"Generated AI tips: {ai_tips}")
+            ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
 
         return ProfileResponse(
             id=user.id,
+            nickname=user.nickname,
             email=user.email,
+            profile_completed=user.profile_completed,
             age=user.age,
-            lifestyle=user.lifestyle.value,
+            gender=user.gender,
+            lifestyle=user.lifestyle.value if user.lifestyle else None,
             height=user.height,
             weight=user.weight,
             initial_weight=user.initial_weight,
@@ -74,7 +79,6 @@ async def get_profile(
             daily_calorie_deficit=user.daily_calorie_deficit,
             avatar=user.avatar,
             telegram_connected=user.telegram_connected,
-            telegram_chat_id=user.telegram_chat_id,
             level=user.level.value if user.level else None,
             weekly_training_goal=user.weekly_training_goal,
             preferred_training_days=user.preferred_training_days,
@@ -87,6 +91,50 @@ async def get_profile(
     except Exception as e:
         print(f"Error in get_profile: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Ошибка при загрузке профиля: {str(e)}")
+
+
+@router.post("/setup", response_model=ProfileSetupResponse)
+async def setup_profile(
+        profile_data: ProfileSetupRequest,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    """Дозаполнение профиля после регистрации"""
+    try:
+        user = current_user
+
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+        if user.profile_completed:
+            raise HTTPException(status_code=400, detail="Профиль уже заполнен")
+
+        # Обновляем данные профиля
+        user.age = profile_data.age
+        user.gender = profile_data.gender
+        user.lifestyle = profile_data.lifestyle
+        user.height = profile_data.height
+        user.weight = profile_data.weight
+        user.initial_weight = profile_data.weight  # Сохраняем начальный вес
+        user.target_weight = profile_data.target_weight
+        user.level = profile_data.level
+        user.weekly_training_goal = profile_data.weekly_training_goal
+        user.profile_completed = True
+
+        await db.commit()
+        await db.refresh(user)
+
+        return ProfileSetupResponse(
+            success=True,
+            message="Профиль успешно заполнен",
+            profile_completed=True
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка при заполнении профиля: {str(e)}")
 
 
 @router.put("/", response_model=ProfileResponse)
@@ -132,9 +180,12 @@ async def update_profile(
 
         return ProfileResponse(
             id=user.id,
+            nickname=user.nickname,
             email=user.email,
+            profile_completed=user.profile_completed,
             age=user.age,
-            lifestyle=user.lifestyle.value,
+            gender=user.gender,
+            lifestyle=user.lifestyle.value if user.lifestyle else None,
             height=user.height,
             weight=user.weight,
             initial_weight=user.initial_weight,
@@ -142,7 +193,6 @@ async def update_profile(
             daily_calorie_deficit=user.daily_calorie_deficit,
             avatar=user.avatar,
             telegram_connected=user.telegram_connected,
-            telegram_chat_id=user.telegram_chat_id,
             level=user.level.value if user.level else None,
             weekly_training_goal=user.weekly_training_goal,
             preferred_training_days=user.preferred_training_days,

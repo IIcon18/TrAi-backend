@@ -129,25 +129,18 @@ class AuthService:
             return None
 
     async def register_user(self, db: AsyncSession, user_data: UserRegister) -> User:
+        """Упрощённая регистрация — только nickname, email, password"""
         result = await db.execute(select(User.id).where(User.email == user_data.email))
         if result.first():
             raise HTTPException(status_code=400, detail="Пользователь с таким email уже существует")
 
         hashed_password = self.hash_password(user_data.password)
-        initial_weight = user_data.initial_weight or user_data.weight
-        target_weight = user_data.target_weight or (user_data.weight - 5)
 
         new_user = User(
+            nickname=user_data.nickname,
             email=user_data.email,
             password=hashed_password,
-            age=user_data.age,
-            lifestyle=user_data.lifestyle,
-            height=user_data.height,
-            weight=user_data.weight,
-            initial_weight=initial_weight,
-            target_weight=target_weight,
-            level=user_data.level,
-            weekly_training_goal=user_data.weekly_training_goal,
+            profile_completed=False,
             created_at=datetime.utcnow()
         )
 

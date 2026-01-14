@@ -26,13 +26,17 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    nickname = Column(String, nullable=False)  # Обязательное при регистрации
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
-    age = Column(Integer, nullable=False)
+    profile_completed = Column(Boolean, default=False)  # Флаг дозаполнения профиля
+
+    # Дозаполняемые поля (nullable)
+    age = Column(Integer, nullable=True)
     gender = Column(Enum(GenderEnum), nullable=True)
-    lifestyle = Column(Enum(LifestyleEnum), nullable=False)
-    height = Column(Integer, nullable=False)
-    weight = Column(Float, nullable=False)
+    lifestyle = Column(Enum(LifestyleEnum), nullable=True)
+    height = Column(Integer, nullable=True)
+    weight = Column(Float, nullable=True)
     initial_weight = Column(Float, nullable=True)
     target_weight = Column(Float, nullable=True)
     daily_calorie_deficit = Column(Integer, nullable=True)

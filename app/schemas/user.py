@@ -12,21 +12,29 @@ class LevelEnum(str, Enum):
     amateur = "amateur"
     professional = "professional"
 
+class GenderEnum(str, Enum):
+    male = "male"
+    female = "female"
+
+
 class UserCreate(BaseModel):
+    """Создание пользователя (упрощённое)"""
+    nickname: str
     email: EmailStr
     password: str
-    age: int
-    lifestyle: LifestyleEnum
-    height: int
-    weight: float
+
 
 class UserRead(BaseModel):
+    """Чтение данных пользователя"""
     id: int
+    nickname: str
     email: EmailStr
-    age: int
-    lifestyle: LifestyleEnum
-    height: int
-    weight: float
+    profile_completed: bool = False
+    age: Optional[int] = None
+    gender: Optional[GenderEnum] = None
+    lifestyle: Optional[LifestyleEnum] = None
+    height: Optional[int] = None
+    weight: Optional[float] = None
     initial_weight: Optional[float] = None
     target_weight: Optional[float] = None
     daily_calorie_deficit: Optional[int] = None
@@ -41,8 +49,12 @@ class UserRead(BaseModel):
     class Config:
         from_attributes = True
 
+
 class UserUpdate(BaseModel):
+    """Обновление профиля пользователя"""
+    nickname: Optional[str] = None
     age: Optional[int] = None
+    gender: Optional[GenderEnum] = None
     lifestyle: Optional[LifestyleEnum] = None
     height: Optional[int] = None
     weight: Optional[float] = None
@@ -56,3 +68,15 @@ class UserUpdate(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ProfileSetup(BaseModel):
+    """Дозаполнение профиля после регистрации"""
+    age: int
+    gender: GenderEnum
+    lifestyle: LifestyleEnum
+    height: int
+    weight: float
+    target_weight: Optional[float] = None
+    level: Optional[LevelEnum] = LevelEnum.beginner
+    weekly_training_goal: Optional[int] = 3

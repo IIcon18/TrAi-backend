@@ -12,16 +12,10 @@ class UserLogin(BaseModel):
     password: str
 
 class UserRegister(BaseModel):
+    """Упрощённая регистрация — только базовые данные"""
+    nickname: str
     email: EmailStr
     password: str
-    age: int
-    lifestyle: LifestyleEnum
-    height: int
-    weight: float
-    initial_weight: Optional[float] = None
-    target_weight: Optional[float] = None
-    level: Optional[str] = None
-    weekly_training_goal: Optional[int] = None
 
 class AuthResponse(BaseModel):
     access_token: str
