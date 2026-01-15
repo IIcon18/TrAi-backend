@@ -5,6 +5,7 @@ from datetime import datetime
 
 async def create_test_data(session: AsyncSession):
     test_user = User(
+        nickname="TestUser",
         email="test@example.com",
         password="hashed_password",
         age=25,
