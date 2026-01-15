@@ -64,16 +64,16 @@ async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyCh
         chart_data = []
         for test in tests:
             chart_data.append(EnergyChartData(
-                date=test.created_at.strftime("%d.%m"),
+                date=test.created_at.isoformat(),
                 energy=test.energy_level,
                 mood=test.mood
             ))
 
         if not chart_data:
-            demo_dates = [(datetime.utcnow() - timedelta(days=i)).strftime("%d.%m") for i in range(6, -1, -1)]
-            for date in demo_dates:
+            for i in range(6, -1, -1):
+                date_obj = datetime.utcnow() - timedelta(days=i)
                 chart_data.append(EnergyChartData(
-                    date=date,
+                    date=date_obj.isoformat(),
                     energy=random.randint(6, 10),
                     mood=random.randint(6, 10)
                 ))
@@ -82,14 +82,15 @@ async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyCh
 
     except Exception as e:
         logger.error(f"Ошибка в get_energy_chart_data: {e}")
-        demo_dates = [(datetime.utcnow() - timedelta(days=i)).strftime("%d.%m") for i in range(6, -1, -1)]
-        return [
-            EnergyChartData(
-                date=date,
+        result = []
+        for i in range(6, -1, -1):
+            date_obj = datetime.utcnow() - timedelta(days=i)
+            result.append(EnergyChartData(
+                date=date_obj.isoformat(),
                 energy=random.randint(6, 10),
                 mood=random.randint(6, 10)
-            ) for date in demo_dates
-        ]
+            ))
+        return result
 
 
 async def get_weekly_progress(db: AsyncSession, user_id: int) -> Dict[str, Any]:
@@ -455,7 +456,7 @@ async def get_dashboard(
             quick_stats_dict
         )
 
-        user_greeting = f"Привет, {current_user.nickname}!" if current_user.nickname else "Привет!"
+        user_greeting = f"Привет, {current_user.email.split('@')[0]}!" if current_user.email else "Привет!"
 
         return DashboardResponse(
             user_greeting=user_greeting,
@@ -496,29 +497,30 @@ async def get_dashboard(
 
 async def get_demo_dashboard(user: User = None, progress_fact: str = None) -> DashboardResponse:
     """Вернуть демо-данные дашборда для нового пользователя или при ошибках"""
-    demo_dates = [(datetime.utcnow() - timedelta(days=i)).strftime("%d.%m") for i in range(6, -1, -1)]
-
-    if user and user.nickname:
-        user_greeting = f"Привет, {user.nickname}!"
+    if user and user.email:
+        user_greeting = f"Привет, {user.email.split('@')[0]}!"
         if not progress_fact:
-            progress_fact = f"{user.nickname}, начни тренировки чтобы увидеть свой прогресс!"
+            progress_fact = f"{user.email.split('@')[0]}, начни тренировки чтобы увидеть свой прогресс! 🚀"
     else:
         user_greeting = "Привет!"
         if not progress_fact:
-            progress_fact = "Начни тренировки чтобы увидеть свой прогресс!"
+            progress_fact = "Начни тренировки чтобы увидеть свой прогресс! 🚀"
+
+    demo_chart_data = []
+    for i in range(6, -1, -1):
+        date_obj = datetime.utcnow() - timedelta(days=i)
+        demo_chart_data.append(EnergyChartData(
+            date=date_obj.isoformat(),
+            energy=random.randint(6, 10),
+            mood=random.randint(6, 10)
+        ))
 
     return DashboardResponse(
         user_greeting=user_greeting,
         progress_fact=progress_fact,
         last_training_message="Your last training was upper body push yesterday 💪",
         weekly_progress_message="Отличная неделя! Продолжай в том же духе! 🔥",
-        energy_chart=[
-            EnergyChartData(
-                date=date,
-                energy=random.randint(6, 10),
-                mood=random.randint(6, 10)
-            ) for date in demo_dates
-        ],
+        energy_chart=demo_chart_data,
         weekly_progress=WeeklyProgress(
             planned_workouts=4,
             completed_workouts=3,
