@@ -455,7 +455,7 @@ async def get_dashboard(
             quick_stats_dict
         )
 
-        user_greeting = f"Привет, {current_user.email.split('@')[0]}!" if current_user.email else "Привет!"
+        user_greeting = f"Привет, {current_user.nickname}!" if current_user.nickname else "Привет!"
 
         return DashboardResponse(
             user_greeting=user_greeting,
@@ -498,14 +498,14 @@ async def get_demo_dashboard(user: User = None, progress_fact: str = None) -> Da
     """Вернуть демо-данные дашборда для нового пользователя или при ошибках"""
     demo_dates = [(datetime.utcnow() - timedelta(days=i)).strftime("%d.%m") for i in range(6, -1, -1)]
 
-    if user and user.email:
-        user_greeting = f"Привет, {user.email.split('@')[0]}!"
+    if user and user.nickname:
+        user_greeting = f"Привет, {user.nickname}!"
         if not progress_fact:
-            progress_fact = f"{user.email.split('@')[0]}, начни тренировки чтобы увидеть свой прогресс! 🚀"
+            progress_fact = f"{user.nickname}, начни тренировки чтобы увидеть свой прогресс!"
     else:
         user_greeting = "Привет!"
         if not progress_fact:
-            progress_fact = "Начни тренировки чтобы увидеть свой прогресс! 🚀"
+            progress_fact = "Начни тренировки чтобы увидеть свой прогресс!"
 
     return DashboardResponse(
         user_greeting=user_greeting,
