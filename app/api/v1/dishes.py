@@ -12,7 +12,7 @@ from app.schemas.dish import (
 from app.models.meal import Meal, Dish
 from app.models.user import User
 
-router = APIRouter(prefix="/dishes", tags=["dishes"])
+router = APIRouter(tags=["dishes"])
 
 DISH_DATABASE = [
     {"id": 1, "name": "Овсяная каша", "calories_per_100g": 88, "protein_per_100g": 3.2, "fat_per_100g": 1.9,

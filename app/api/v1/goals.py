@@ -12,7 +12,7 @@ from app.models.user import User
 from app.models.goal import Goal, GoalTypeEnum
 from app.services.nutrition_calculator import NutritionCalculator
 
-router = APIRouter(prefix="/goals", tags=["goals"])
+router = APIRouter(tags=["goals"])
 
 
 async def get_or_create_goal(db: AsyncSession, goal_type: GoalTypeEnum) -> Goal:

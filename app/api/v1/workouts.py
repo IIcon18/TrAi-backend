@@ -25,7 +25,7 @@ from app.schemas.workout import (
 )
 from app.services.ai_service import ai_service
 
-router = APIRouter(prefix="/workouts", tags=["workouts"])
+router = APIRouter(tags=["workouts"])
 
 
 # ==========================

@@ -19,7 +19,7 @@ from app.models.meal import Meal, Dish
 from app.services.nutrition_calculator import NutritionCalculator
 from app.services.ai_service import ai_service
 
-router = APIRouter(prefix="/progress", tags=["progress"])
+router = APIRouter(tags=["progress"])
 logger = logging.getLogger(__name__)
 
 

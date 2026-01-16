@@ -17,7 +17,7 @@ from app.models.goal import Goal
 from app.models.ai_recommendation import AIRecommendation
 from app.services.ai_service import ai_service
 
-router = APIRouter(prefix="/profile", tags=["profile"])
+router = APIRouter(tags=["profile"])
 
 
 @router.get("/", response_model=ProfileResponse)
