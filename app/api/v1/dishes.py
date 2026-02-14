@@ -1,16 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_, func, any_
 from datetime import datetime
 
 from app.core.db import get_db
 from app.core.dependencies import get_current_user
 from app.schemas.dish import (
     DishCreate, DishResponse, MealCreate, MealResponse,
-    SearchDishRequest, DishSearchResult
+    SearchDishRequest, DishSearchResult, AnalyzeDishRequest
 )
 from app.models.meal import Meal, Dish
 from app.models.user import User
+from app.services.nutrition_service import nutrition_service
+from app.services.ai_service import ai_service
 
 router = APIRouter(tags=["dishes"])
 
@@ -69,23 +71,144 @@ async def create_meal(
 
 
 @router.post("/search")
-async def search_dishes(search_data: SearchDishRequest):
-    """Поиск блюд по названию (пустой запрос возвращает популярные)"""
-    query = search_data.query.lower()
+async def search_dishes(
+        search_data: SearchDishRequest,
+        db: AsyncSession = Depends(get_db)
+):
+    """Поиск блюд по названию в базе продуктов + AI если не найдено"""
+    from app.models.product import Product
 
-    if not query.strip():
-        results = [DishSearchResult(**dish) for dish in DISH_DATABASE[:6]]
+    query = search_data.query.lower().strip()
+
+    if not query:
+        # Возвращаем популярные продукты
+        result = await db.execute(
+            select(Product)
+            .where(Product.verified == True)
+            .order_by(Product.id)
+            .limit(10)
+        )
+        products = result.scalars().all()
     else:
-        results = [
-            DishSearchResult(**dish) for dish in DISH_DATABASE
-            if query in dish["name"].lower()
+        # 1) Поиск по name_lower (LIKE)
+        # 2) Поиск по name_variants (ANY в массиве)
+        # Разбиваем запрос на слова для более гибкого поиска
+        words = query.split()
+
+        conditions = [
+            # Полное совпадение подстроки в name_lower
+            Product.name_lower.like(f"%{query}%"),
         ]
+
+        # Поиск по каждому слову отдельно (для запросов типа "курица" -> "куриная грудка")
+        for word in words:
+            if len(word) >= 3:
+                conditions.append(Product.name_lower.like(f"%{word}%"))
+
+        # Поиск по массиву name_variants — любой вариант содержит запрос
+        # PostgreSQL: query = ANY(name_variants)
+        conditions.append(
+            func.array_to_string(Product.name_variants, ' ').ilike(f"%{query}%")
+        )
+        for word in words:
+            if len(word) >= 3:
+                conditions.append(
+                    func.array_to_string(Product.name_variants, ' ').ilike(f"%{word}%")
+                )
+
+        result = await db.execute(
+            select(Product).where(or_(*conditions)).limit(20)
+        )
+        products = result.scalars().all()
+
+        # Если ничего не найдено - попробуем через NutritionService (включая AI)
+        if not products:
+            try:
+                nutrition = await nutrition_service.get_nutrition(
+                    dish_name=search_data.query,
+                    grams=100,
+                    db=db,
+                    ai_service=ai_service
+                )
+                # Создаем временный результат с AI данными
+                results = [{
+                    "id": 0,  # Временный ID
+                    "name": search_data.query,
+                    "calories_per_100g": nutrition["calories"],
+                    "protein_per_100g": nutrition["protein"],
+                    "fat_per_100g": nutrition["fat"],
+                    "carbs_per_100g": nutrition["carbs"]
+                }]
+                return {
+                    "query": search_data.query,
+                    "results": results,
+                    "total_count": 1,
+                    "source": "ai"
+                }
+            except Exception as e:
+                print(f"AI search failed: {e}")
+                # Возвращаем пустой результат
+                return {
+                    "query": search_data.query,
+                    "results": [],
+                    "total_count": 0
+                }
+
+    results = [
+        DishSearchResult(
+            id=p.id,
+            name=p.name,
+            calories_per_100g=p.calories_per_100g,
+            protein_per_100g=p.protein_per_100g,
+            fat_per_100g=p.fat_per_100g,
+            carbs_per_100g=p.carbs_per_100g
+        ) for p in products
+    ]
 
     return {
         "query": search_data.query,
         "results": results,
-        "total_count": len(results)
+        "total_count": len(results),
+        "source": "database"
     }
+
+
+@router.post("/analyze")
+async def analyze_dish_with_ai(
+        search_data: AnalyzeDishRequest,
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Анализ блюда через AI (если не найдено в базе).
+    Использует NutritionService с fallback цепочкой.
+    """
+    dish_name = search_data.query.strip()
+    grams = search_data.grams
+
+    if not dish_name:
+        raise HTTPException(status_code=400, detail="Название блюда не может быть пустым")
+
+    try:
+        # Используем NutritionService для поиска в базе/кеше или вызова AI
+        nutrition = await nutrition_service.get_nutrition(
+            dish_name=dish_name,
+            grams=grams,
+            db=db,
+            ai_service=ai_service
+        )
+
+        return {
+            "dish_name": dish_name,
+            "grams": grams,
+            "nutrition": nutrition,
+            "source": ai_service.last_used_provider or "database"
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Не удалось проанализировать блюдо: {str(e)}"
+        )
 
 
 @router.post("/add-to-meal/{meal_id}", response_model=DishResponse)

@@ -418,7 +418,17 @@ async def get_nutrition_plan(db: AsyncSession, user_id: int) -> NutritionPlan:
             )
 
         user_calories = NutritionCalculator.get_user_calorie_needs(user)
-        user_goal = getattr(user, 'fitness_goal', 'weight_loss')
+
+        # Определяем тип цели из Goal модели
+        user_goal = "maintenance"
+        if user.current_goal_id:
+            goal_result = await db.execute(
+                select(Goal).where(Goal.id == user.current_goal_id)
+            )
+            goal_obj = goal_result.scalar_one_or_none()
+            if goal_obj and goal_obj.type:
+                user_goal = goal_obj.type.value
+
         macros = NutritionCalculator.calculate_macros(user_calories, user_goal)
 
         total_calories = macros["protein"] * 4 + macros["carbs"] * 4 + macros["fat"] * 9

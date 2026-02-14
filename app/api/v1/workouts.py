@@ -136,7 +136,7 @@ async def get_workout_page(
             Workout.user_id == current_user.id,
             func.date(Workout.scheduled_at) == today,
             Workout.completed == False
-        )
+        ).limit(1)
     )
     workout = result.scalar_one_or_none()
 
@@ -158,6 +158,8 @@ async def get_workout_page(
             {
                 "id": e.id,
                 "name": e.name,
+                "description": e.description or "",
+                "equipment": e.equipment or "none",
                 "sets": e.sets,
                 "reps": e.reps,
                 "weight": e.weight,
@@ -190,17 +192,55 @@ async def generate_ai_workout(
     if normalized_group not in allowed_groups:
         raise HTTPException(status_code=400, detail=f"Invalid muscle_group: {raw_group}")
 
+    # Получаем реальную цель пользователя
+    user_goal = "general_fitness"
+    if current_user.current_goal_id:
+        from app.models.goal import Goal
+        goal_result = await db.execute(
+            select(Goal).where(Goal.id == current_user.current_goal_id)
+        )
+        goal = goal_result.scalar_one_or_none()
+        if goal and goal.type:
+            user_goal = goal.type.value
+
+    # Загружаем историю тренировок для разнообразия
+    history_result = await db.execute(
+        select(Workout)
+        .where(
+            Workout.user_id == current_user.id,
+            Workout.muscle_group == normalized_group
+        )
+        .order_by(Workout.created_at.desc())
+        .limit(5)
+    )
+    recent_workouts = history_result.scalars().all()
+
+    workout_history = []
+    for w in recent_workouts:
+        ex_result = await db.execute(
+            select(Exercise).where(Exercise.workout_id == w.id)
+        )
+        exercises = ex_result.scalars().all()
+        workout_history.append({
+            "name": w.name,
+            "muscle_group": w.muscle_group,
+            "exercises": [
+                {"name": e.name, "muscle_group": e.muscle_group}
+                for e in exercises
+            ]
+        })
+
     try:
         ai_data = await ai_service.generate_ai_workout(
             user_data={
                 "lifestyle": current_user.lifestyle.value if current_user.lifestyle else "low",
                 "gender": current_user.gender.value if current_user.gender else "not_specified",
                 "age": current_user.age,
-                "goal": "general_fitness",
+                "goal": user_goal,
                 "level": current_user.level.value if getattr(current_user, "level", None) else "beginner",
             },
             muscle_group=normalized_group,
-            workout_history=[]
+            workout_history=workout_history
         )
     except Exception:
         raise HTTPException(status_code=500, detail="AI не смог сгенерировать тренировку")
@@ -219,19 +259,20 @@ async def generate_ai_workout(
     await db.commit()
     await db.refresh(workout)
 
-    BASE_WEIGHTS = {"low": 20, "medium": 40, "high": 60}
-    user_lifestyle = current_user.lifestyle.value if current_user.lifestyle else "low"
-    base_weight = BASE_WEIGHTS.get(user_lifestyle, 20)
-
     exercises_list = []
     for ex in ai_data["exercises"]:
+        # Используем вес из AI если указан, иначе 0
+        weight = ex.get("weight", 0)
+
         exercise = Exercise(
             workout_id=workout.id,
             name=ex["name"],
+            description=ex.get("description", ""),
+            equipment=ex.get("equipment", "none"),
             muscle_group=ex["muscle_group"],
             sets=ex["sets"],
             reps=ex["reps"],
-            weight=base_weight,
+            weight=weight,
             intensity=ex["intensity"],
             exercise_type="other"
         )
@@ -241,6 +282,8 @@ async def generate_ai_workout(
         exercises_list.append({
             "id": exercise.id,
             "name": exercise.name,
+            "description": exercise.description,
+            "equipment": exercise.equipment,
             "sets": exercise.sets,
             "reps": exercise.reps,
             "weight": exercise.weight,

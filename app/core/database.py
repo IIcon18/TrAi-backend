@@ -10,6 +10,7 @@ from app.models.meal import Meal, Dish
 from app.models.progress import Progress
 from app.models.post_workout_test import PostWorkoutTest
 from app.models.ai_recommendation import AIRecommendation
+from app.models.product import Product, AINutritionCache
 
 DATABASE_URL = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 print("ASYNC DATABASE_URL =", DATABASE_URL)
@@ -67,6 +68,22 @@ async def init_database():
                 ALTER TABLE users ALTER COLUMN height DROP NOT NULL;
                 ALTER TABLE users ALTER COLUMN weight DROP NOT NULL;
                 ALTER TABLE users ALTER COLUMN lifestyle DROP NOT NULL;
+
+                -- Add description column to exercises if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='exercises' AND column_name='description'
+                ) THEN
+                    ALTER TABLE exercises ADD COLUMN description VARCHAR;
+                END IF;
+
+                -- Add equipment column to exercises if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='exercises' AND column_name='equipment'
+                ) THEN
+                    ALTER TABLE exercises ADD COLUMN equipment VARCHAR;
+                END IF;
             END $$;
             """)
         )

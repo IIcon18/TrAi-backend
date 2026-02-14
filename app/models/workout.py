@@ -34,6 +34,8 @@ class Exercise(Base):
     id = Column(Integer, primary_key=True)
     workout_id = Column(Integer, ForeignKey("workouts.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    equipment = Column(String, nullable=True)
     muscle_group = Column(String, nullable=False)
     sets = Column(Integer, default=3, nullable=False)
     reps = Column(Integer, default=10, nullable=False)
