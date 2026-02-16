@@ -24,6 +24,7 @@ from app.schemas.workout import (
     ExerciseWithTips
 )
 from app.services.ai_service import ai_service
+from app.models.progress import Progress
 
 router = APIRouter(tags=["workouts"])
 
@@ -116,9 +117,49 @@ async def get_calendar_events(db: AsyncSession, user_id: int) -> List[CalendarEv
     return events
 
 
-# ==========================
-# ENDPOINTS
-# ==========================
+async def update_progress_on_workout_completion(
+    db: AsyncSession,
+    user_id: int,
+    workout: Workout
+) -> None:
+    """
+    Update Progress record when a workout is completed.
+    Increments completed_workouts count for today.
+    """
+    try:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        # Find existing Progress record for today
+        result = await db.execute(
+            select(Progress).where(
+                Progress.user_id == user_id,
+                Progress.recorded_at >= today_start,
+                Progress.recorded_at <= today_end
+            )
+        )
+        progress_record = result.scalar_one_or_none()
+
+        if progress_record:
+            # Update existing record
+            progress_record.completed_workouts += 1
+            if workout.total_weight_lifted:
+                progress_record.total_lifted_weight += workout.total_weight_lifted
+        else:
+            # Create new Progress record for today
+            progress_record = Progress(
+                user_id=user_id,
+                completed_workouts=1,
+                total_lifted_weight=workout.total_weight_lifted or 0,
+                recorded_at=datetime.utcnow()
+            )
+            db.add(progress_record)
+
+        await db.commit()
+
+    except Exception as e:
+        await db.rollback()
+
 
 # ==========================
 # ENDPOINTS
@@ -302,3 +343,121 @@ async def generate_ai_workout(
     }
 
     return workout_response
+
+
+@router.post("/create-manual")
+async def create_manual_workout(
+    request: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Создать тренировку вручную (не через AI)
+    """
+    # Валидация muscle_group
+    muscle_group = request.get("muscle_group", "upper_body_push")
+    allowed_groups = {"upper_body_push", "upper_body_pull", "core_stability", "lower_body"}
+    if muscle_group not in allowed_groups:
+        raise HTTPException(status_code=400, detail=f"Invalid muscle_group: {muscle_group}")
+
+    # Создаем тренировку
+    workout = Workout(
+        user_id=current_user.id,
+        name=request.get("name", "Custom Workout"),
+        muscle_group=muscle_group,
+        scheduled_at=datetime.utcnow(),
+        completed=False,
+        ai_generated=False,
+        difficulty="medium"
+    )
+    db.add(workout)
+    await db.commit()
+    await db.refresh(workout)
+
+    # Добавляем упражнения
+    exercises_list = []
+    for ex_data in request.get("exercises", []):
+        exercise = Exercise(
+            workout_id=workout.id,
+            name=ex_data.get("name", "Exercise"),
+            description=ex_data.get("description", ""),
+            equipment=ex_data.get("equipment", "bodyweight"),
+            muscle_group=muscle_group,
+            sets=ex_data.get("sets", 3),
+            reps=ex_data.get("reps", 10),
+            weight=ex_data.get("weight", 0),
+            intensity=ex_data.get("intensity", "medium"),
+            exercise_type="other"
+        )
+        db.add(exercise)
+        await db.flush()
+
+        exercises_list.append({
+            "id": exercise.id,
+            "name": exercise.name,
+            "description": exercise.description,
+            "equipment": exercise.equipment,
+            "sets": exercise.sets,
+            "reps": exercise.reps,
+            "weight": exercise.weight,
+            "intensity": exercise.intensity
+        })
+
+    await db.commit()
+
+    return {
+        "id": workout.id,
+        "name": workout.name,
+        "muscle_group": workout.muscle_group,
+        "scheduled_at": workout.scheduled_at.isoformat(),
+        "completed": workout.completed,
+        "exercises": exercises_list
+    }
+
+
+@router.post("/{workout_id}/complete")
+async def complete_workout(
+    workout_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Mark a workout as completed and update Progress tracking.
+    """
+    # Get the workout
+    result = await db.execute(
+        select(Workout).where(
+            Workout.id == workout_id,
+            Workout.user_id == current_user.id
+        )
+    )
+    workout = result.scalar_one_or_none()
+
+    if not workout:
+        raise HTTPException(status_code=404, detail="Workout not found")
+
+    if workout.completed:
+        raise HTTPException(status_code=400, detail="Workout already completed")
+
+    # Calculate total weight lifted from exercises
+    exercises_result = await db.execute(
+        select(Exercise).where(Exercise.workout_id == workout.id)
+    )
+    exercises = exercises_result.scalars().all()
+
+    total_weight = sum(ex.sets * ex.reps * ex.weight for ex in exercises)
+    workout.total_weight_lifted = total_weight
+
+    # Mark as completed
+    workout.completed = True
+    await db.commit()
+
+    # Update Progress record
+    await update_progress_on_workout_completion(db, current_user.id, workout)
+
+    return {
+        "message": "Workout completed successfully",
+        "workout_id": workout.id,
+        "completed": workout.completed,
+        "total_weight_lifted": total_weight
+    }

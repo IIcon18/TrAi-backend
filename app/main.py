@@ -27,7 +27,6 @@ app.include_router(api_router, prefix="/api/v1")
 @app.on_event("startup")
 async def startup_event():
     await init_database()
-    print("Приложение запущено!")
 
     from app.models.user import User
 
@@ -37,9 +36,6 @@ async def startup_event():
 
         if not existing_user:
             await create_test_data(session)
-            print("Тестовый пользователь создан")
-        else:
-            print(f"Тестовый пользователь уже существует: {existing_user.email} (ID: {existing_user.id})")
 
 
 @app.get("/")

@@ -13,6 +13,7 @@ from app.models.meal import Meal, Dish
 from app.models.user import User
 from app.services.nutrition_service import nutrition_service
 from app.services.ai_service import ai_service
+from app.services.openfoodfacts_service import openfoodfacts_service
 
 router = APIRouter(tags=["dishes"])
 
@@ -121,9 +122,63 @@ async def search_dishes(
         )
         products = result.scalars().all()
 
-        # Если ничего не найдено - попробуем через NutritionService (включая AI)
+        # Если ничего не найдено в базе - пробуем OpenFoodFacts
         if not products:
             try:
+                print(f"🌍 Trying OpenFoodFacts for: {search_data.query}")
+                off_products = await openfoodfacts_service.search_products(
+                    query=search_data.query,
+                    language="ru",
+                    limit=10
+                )
+
+                if off_products:
+                    print(f"✅ Found {len(off_products)} products in OpenFoodFacts")
+                    # Конвертируем в формат DishSearchResult
+                    results = [
+                        DishSearchResult(
+                            id=0,  # Временный ID (из внешнего API)
+                            name=p["name"],
+                            calories_per_100g=p["calories_per_100g"],
+                            protein_per_100g=p["protein_per_100g"],
+                            fat_per_100g=p["fat_per_100g"],
+                            carbs_per_100g=p["carbs_per_100g"]
+                        ) for p in off_products
+                    ]
+
+                    # Опционально: сохраняем первый результат в нашу базу
+                    if off_products and len(off_products) > 0:
+                        best_match = off_products[0]
+                        # Создаем новый продукт в базе
+                        new_product = Product(
+                            name=best_match["name"],
+                            name_lower=best_match["name"].lower(),
+                            name_variants=[search_data.query.lower()],
+                            calories_per_100g=best_match["calories_per_100g"],
+                            protein_per_100g=best_match["protein_per_100g"],
+                            fat_per_100g=best_match["fat_per_100g"],
+                            carbs_per_100g=best_match["carbs_per_100g"],
+                            category="external",
+                            verified=False,
+                            source="openfoodfacts"
+                        )
+                        db.add(new_product)
+                        await db.commit()
+                        print(f"💾 Saved to database: {best_match['name']}")
+
+                    return {
+                        "query": search_data.query,
+                        "results": results,
+                        "total_count": len(results),
+                        "source": "openfoodfacts"
+                    }
+            except Exception as e:
+                print(f"❌ OpenFoodFacts search failed: {e}")
+
+        # Если OpenFoodFacts тоже не помог - попробуем AI
+        if not products:
+            try:
+                print(f"🤖 Trying AI for: {search_data.query}")
                 nutrition = await nutrition_service.get_nutrition(
                     dish_name=search_data.query,
                     grams=100,
@@ -146,7 +201,7 @@ async def search_dishes(
                     "source": "ai"
                 }
             except Exception as e:
-                print(f"AI search failed: {e}")
+                print(f"❌ AI search failed: {e}")
                 # Возвращаем пустой результат
                 return {
                     "query": search_data.query,

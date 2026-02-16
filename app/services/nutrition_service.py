@@ -54,10 +54,10 @@ class NutritionService:
         if product:
             return product
 
-        # Поиск в name_variants
+        # Поиск в name_variants (PostgreSQL ARRAY)
         result = await db.execute(
             select(Product).where(
-                Product.name_variants.contains([normalized])
+                Product.name_variants.any(normalized)
             )
         )
         product = result.scalar_one_or_none()

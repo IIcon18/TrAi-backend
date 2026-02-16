@@ -15,7 +15,9 @@ from app.schemas.profile import (
 from app.models.user import User
 from app.models.goal import Goal
 from app.models.ai_recommendation import AIRecommendation
+from app.models.progress import Progress
 from app.services.ai_service import ai_service
+from datetime import datetime, timedelta
 
 router = APIRouter(tags=["profile"])
 
@@ -28,7 +30,6 @@ async def get_profile(
     """Получить профиль текущего пользователя с AI советами"""
     try:
         user = current_user
-        print(f"Getting profile for user: {user.email}")
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -44,25 +45,26 @@ async def get_profile(
 
         # Генерируем AI tips только если профиль заполнен
         if user.profile_completed:
-            print("Generating AI tips...")
 
             goal_type = "maintenance"
             if current_goal and hasattr(current_goal, 'type'):
                 goal_type = current_goal.type.value if hasattr(current_goal.type, 'value') else str(current_goal.type)
 
-            ai_tips = await ai_service.generate_profile_tips(
-                user_data={
-                    "level": user.level.value if user.level else "beginner",
-                    "goal": goal_type
-                },
-                progress_data={
-                    "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
-                    "recovery_trend": "стабильный"
-                }
-            )
+            try:
+                ai_tips = await ai_service.generate_profile_tips(
+                    user_data={
+                        "level": user.level.value if user.level else "beginner",
+                        "goal": goal_type
+                    },
+                    progress_data={
+                        "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
+                        "recovery_trend": "стабильный"
+                    }
+                )
 
-            print(f"Generated AI tips: {ai_tips}")
-            ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
+                ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
+            except Exception as ai_err:
+                ai_tips_models = [AITip(tip="AI tips temporarily unavailable. Please try again later.")]
 
         return ProfileResponse(
             id=user.id,
@@ -89,7 +91,6 @@ async def get_profile(
         )
 
     except Exception as e:
-        print(f"Error in get_profile: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Ошибка при загрузке профиля: {str(e)}")
 
 
@@ -340,3 +341,64 @@ async def get_ai_facts(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при загрузке фактов: {str(e)}")
+
+
+@router.get("/workout-stats")
+async def get_workout_stats(
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Get workout statistics for the last 7 days for Profile page chart.
+    Returns completed workouts count and total weight lifted per day.
+    """
+    try:
+        week_ago = datetime.utcnow() - timedelta(days=6)  # Last 7 days including today
+        today = datetime.utcnow()
+
+        # Get all progress records for the last 7 days
+        progress_result = await db.execute(
+            select(Progress)
+            .where(
+                Progress.user_id == current_user.id,
+                Progress.recorded_at >= week_ago
+            )
+            .order_by(Progress.recorded_at.asc())
+        )
+        progress_records = progress_result.scalars().all()
+
+        # Create a dictionary with date as key
+        stats_by_date = {}
+        for record in progress_records:
+            date_key = record.recorded_at.date()
+            if date_key not in stats_by_date:
+                stats_by_date[date_key] = {
+                    'completed_workouts': 0,
+                    'total_weight': 0
+                }
+            stats_by_date[date_key]['completed_workouts'] += record.completed_workouts
+            stats_by_date[date_key]['total_weight'] += record.total_lifted_weight
+
+        # Generate data for all 7 days (fill missing days with 0)
+        chart_data = []
+        for i in range(7):
+            date = (week_ago + timedelta(days=i)).date()
+            day_name = date.strftime('%a')  # Mon, Tue, Wed, etc.
+
+            stats = stats_by_date.get(date, {'completed_workouts': 0, 'total_weight': 0})
+
+            chart_data.append({
+                'date': date.isoformat(),
+                'day': day_name,
+                'completed_workouts': stats['completed_workouts'],
+                'total_weight': round(stats['total_weight'], 1)
+            })
+
+        return {
+            'chart_data': chart_data,
+            'total_workouts_week': sum(day['completed_workouts'] for day in chart_data),
+            'total_weight_week': round(sum(day['total_weight'] for day in chart_data), 1)
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке статистики: {str(e)}")

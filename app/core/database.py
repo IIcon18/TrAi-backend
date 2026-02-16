@@ -13,7 +13,6 @@ from app.models.ai_recommendation import AIRecommendation
 from app.models.product import Product, AINutritionCache
 
 DATABASE_URL = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-print("ASYNC DATABASE_URL =", DATABASE_URL)
 
 engine = create_async_engine(
     DATABASE_URL,
@@ -34,11 +33,9 @@ AsyncSessionLocal = async_sessionmaker(
 async def init_database():
     async with engine.begin() as conn:
         if settings.RESET_DATABASE:
-            print("RESET_DATABASE=true - recreating DB")
             await conn.run_sync(Base.metadata.drop_all)
 
         await conn.run_sync(Base.metadata.create_all)
-        print("Tables created/verified")
 
         # Migration: add new columns if they don't exist and make fields nullable
         await conn.execute(
@@ -87,7 +84,6 @@ async def init_database():
             END $$;
             """)
         )
-        print("Migration completed")
 
 
 async def get_db():
