@@ -22,7 +22,7 @@ async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
 
     access_token_expires = timedelta(minutes=auth_service.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth_service.create_access_token(
-        data={"sub": str(authenticated_user.id)},
+        data={"sub": str(authenticated_user.id), "role": authenticated_user.role.value},
         expires_delta=access_token_expires
     )
 
@@ -35,7 +35,8 @@ async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
     return AuthResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        token_type="bearer"
+        token_type="bearer",
+        role=authenticated_user.role.value
     )
 
 
@@ -49,7 +50,7 @@ async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
 
     access_token_expires = timedelta(minutes=auth_service.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth_service.create_access_token(
-        data={"sub": str(new_user.id)},
+        data={"sub": str(new_user.id), "role": new_user.role.value},
         expires_delta=access_token_expires
     )
 
@@ -62,7 +63,8 @@ async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
     return AuthResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        token_type="bearer"
+        token_type="bearer",
+        role=new_user.role.value
     )
 
 @router.post("/refresh", response_model=AuthResponse)
@@ -77,12 +79,13 @@ async def refresh_token(request: RefreshTokenRequest, db: AsyncSession = Depends
 
     access_token_expires = timedelta(minutes=auth_service.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth_service.create_access_token(
-        data={"sub": str(user.id)},
+        data={"sub": str(user.id), "role": user.role.value},
         expires_delta=access_token_expires
     )
 
     return AuthResponse(
         access_token=access_token,
         refresh_token=request.refresh_token,
-        token_type="bearer"
+        token_type="bearer",
+        role=user.role.value
     )

@@ -81,6 +81,33 @@ async def init_database():
                 ) THEN
                     ALTER TABLE exercises ADD COLUMN equipment VARCHAR;
                 END IF;
+
+                -- RBAC: Add role enum type and column
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'roleenum') THEN
+                    CREATE TYPE roleenum AS ENUM ('user', 'pro', 'admin');
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='users' AND column_name='role'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN role roleenum DEFAULT 'user' NOT NULL;
+                END IF;
+
+                -- RBAC: Add AI workout usage tracking
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='users' AND column_name='ai_workout_uses'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN ai_workout_uses INTEGER DEFAULT 0 NOT NULL;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='users' AND column_name='ai_workout_reset_date'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN ai_workout_reset_date TIMESTAMP;
+                END IF;
             END $$;
             """)
         )

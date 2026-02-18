@@ -6,6 +6,7 @@ from app.api.v1.goals import router as goals_router
 from app.api.v1.dishes import router as dishes_router
 from app.api.v1.workouts import router as workouts_router
 from app.api.v1.progress import router as progress_router
+from app.api.v1.admin import router as admin_router
 
 api_router = APIRouter()
 
@@ -16,3 +17,4 @@ api_router.include_router(goals_router, prefix="/goals", tags=["goals"])
 api_router.include_router(dishes_router, prefix="/dishes", tags=["dishes"])
 api_router.include_router(workouts_router, prefix="/workouts", tags=["workouts"])
 api_router.include_router(progress_router, prefix="/progress", tags=["progress"])
+api_router.include_router(admin_router, prefix="/admin", tags=["admin"])

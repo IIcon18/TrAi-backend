@@ -12,7 +12,7 @@ from app.schemas.dashboard import (
     CurrentNutrition, AIRecommendationRead, EnergyChartData, QuickAction
 )
 from app.core.dependencies import get_current_user
-from app.models.user import User
+from app.models.user import User, RoleEnum
 from app.models.workout import Workout, Exercise
 from app.models.post_workout_test import PostWorkoutTest
 from app.models.ai_recommendation import AIRecommendation
@@ -443,30 +443,34 @@ async def get_dashboard(
         current_nutrition = await get_current_nutrition_consumption(db, user_id)
         quick_stats = await get_quick_stats(db, user_id)
         quick_actions = get_quick_actions()
-        ai_recommendations = await get_ai_recommendations(db, user_id)
-
-        # Получаем информацию о последней тренировке
-        last_workout = await get_last_workout_info(db, user_id)
-
-        # Генерируем AI сообщения
-        progress_fact = await generate_ai_greeting(
-            db, user_id, quick_stats, weekly_progress_data, energy_chart
-        )
-        last_training_message = await ai_service.generate_last_training_message(last_workout)
-        
-        # Преобразуем QuickStats в словарь для AI функции
-        quick_stats_dict = {
-            'total_weight_lifted': quick_stats.total_weight_lifted,
-            'recovery_score': quick_stats.recovery_score,
-            'goal_progress': quick_stats.goal_progress,
-            'weight_change': quick_stats.weight_change
-        }
-        weekly_progress_message = await ai_service.generate_weekly_progress_message(
-            weekly_progress_data, 
-            quick_stats_dict
-        )
 
         user_greeting = f"Привет, {current_user.email.split('@')[0]}!" if current_user.email else "Привет!"
+
+        # AI-функции только для pro/admin
+        is_pro = current_user.role in (RoleEnum.pro, RoleEnum.admin)
+
+        if is_pro:
+            ai_recommendations = await get_ai_recommendations(db, user_id)
+            last_workout = await get_last_workout_info(db, user_id)
+            progress_fact = await generate_ai_greeting(
+                db, user_id, quick_stats, weekly_progress_data, energy_chart
+            )
+            last_training_message = await ai_service.generate_last_training_message(last_workout)
+            quick_stats_dict = {
+                'total_weight_lifted': quick_stats.total_weight_lifted,
+                'recovery_score': quick_stats.recovery_score,
+                'goal_progress': quick_stats.goal_progress,
+                'weight_change': quick_stats.weight_change
+            }
+            weekly_progress_message = await ai_service.generate_weekly_progress_message(
+                weekly_progress_data,
+                quick_stats_dict
+            )
+        else:
+            ai_recommendations = []
+            progress_fact = f"{user_greeting} Начни тренироваться и отслеживай свой прогресс!"
+            last_training_message = ""
+            weekly_progress_message = ""
 
         return DashboardResponse(
             user_greeting=user_greeting,

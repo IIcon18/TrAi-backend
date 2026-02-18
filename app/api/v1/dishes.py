@@ -5,6 +5,7 @@ from datetime import datetime
 
 from app.core.db import get_db
 from app.core.dependencies import get_current_user
+from app.core.rbac import require_pro
 from app.schemas.dish import (
     DishCreate, DishResponse, MealCreate, MealResponse,
     SearchDishRequest, DishSearchResult, AnalyzeDishRequest
@@ -38,15 +39,15 @@ DISH_DATABASE = [
 
 
 @router.get("/meal-types")
-async def get_meal_types():
-    """Получить доступные типы приемов пищи"""
+async def get_meal_types(current_user: User = Depends(require_pro)):
+    """Получить доступные типы приемов пищи (только pro/admin)"""
     return ["breakfast", "lunch", "dinner", "snack"]
 
 
 @router.post("/create-meal", response_model=MealResponse)
 async def create_meal(
         meal_data: MealCreate,
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_pro),
         db: AsyncSession = Depends(get_db)
 ):
     """Создать новый прием пищи"""
@@ -74,6 +75,7 @@ async def create_meal(
 @router.post("/search")
 async def search_dishes(
         search_data: SearchDishRequest,
+        current_user: User = Depends(require_pro),
         db: AsyncSession = Depends(get_db)
 ):
     """Поиск блюд по названию в базе продуктов + AI если не найдено"""
@@ -231,6 +233,7 @@ async def search_dishes(
 @router.post("/analyze")
 async def analyze_dish_with_ai(
         search_data: AnalyzeDishRequest,
+        current_user: User = Depends(require_pro),
         db: AsyncSession = Depends(get_db)
 ):
     """
@@ -270,7 +273,7 @@ async def analyze_dish_with_ai(
 async def add_dish_to_meal(
         meal_id: int,
         dish_data: DishCreate,
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_pro),
         db: AsyncSession = Depends(get_db)
 ):
     """Добавить блюдо в прием пищи"""
@@ -314,7 +317,7 @@ async def add_dish_to_meal(
 @router.get("/meal/{meal_id}", response_model=MealResponse)
 async def get_meal_with_dishes(
         meal_id: int,
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_pro),
         db: AsyncSession = Depends(get_db)
 ):
     """Получить прием пищи со всеми блюдами"""

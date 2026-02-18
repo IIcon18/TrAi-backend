@@ -80,7 +80,8 @@ class AuthService:
                 User.id,
                 User.email,
                 User.refresh_token,
-                User.refresh_token_expires
+                User.refresh_token_expires,
+                User.role
             ).where(User.id == int(user_id))
         )
         user_data = result.first()
@@ -94,6 +95,7 @@ class AuthService:
             user = User()
             user.id = user_data[0]
             user.email = user_data[1]
+            user.role = user_data[4]
             return user
 
         return None
@@ -104,7 +106,8 @@ class AuthService:
                 select(
                     User.id,
                     User.email,
-                    User.password
+                    User.password,
+                    User.role
                 ).where(User.email == login_data.email)
             )
             user_data = result.first()
@@ -120,6 +123,7 @@ class AuthService:
             user = User()
             user.id = user_data[0]
             user.email = user_data[1]
+            user.role = user_data[3]
 
             print(f"User authenticated successfully: {user.email}")
             return user

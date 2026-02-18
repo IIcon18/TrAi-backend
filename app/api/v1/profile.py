@@ -7,6 +7,7 @@ import os
 
 from app.core.db import get_db
 from app.core.dependencies import get_current_user
+from app.core.rbac import require_pro
 from app.schemas.profile import (
     ProfileResponse, ProfileUpdate, TelegramConnectRequest,
     TelegramConnectResponse, AIFact, AvatarUploadResponse,
@@ -210,10 +211,10 @@ async def update_profile(
 
 @router.post("/refresh-ai-tips", response_model=AITipsRefreshResponse)
 async def refresh_ai_tips(
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_pro),
         db: AsyncSession = Depends(get_db)
 ):
-    """Обновить AI советы (по кнопке refresh)"""
+    """Обновить AI советы (только pro/admin)"""
     try:
         user = current_user
 
@@ -324,10 +325,10 @@ async def connect_telegram(
 
 @router.get("/ai-facts", response_model=List[AIFact])
 async def get_ai_facts(
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_pro),
         db: AsyncSession = Depends(get_db)
 ):
-    """Получить последние AI рекомендации для пользователя"""
+    """Получить последние AI рекомендации (только pro/admin)"""
     try:
         facts_result = await db.execute(
             select(AIRecommendation)

@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.api.router import api_router
 from app.core import init_database
-from app.core.test_data import create_test_data
+from app.core.test_data import create_test_data, create_admin_user
 from app.core.db import AsyncSessionLocal
 
 app = FastAPI(title="TrAi - your personal training intelligence")
@@ -31,11 +31,15 @@ async def startup_event():
     from app.models.user import User
 
     async with AsyncSessionLocal() as session:
+        # Создать тестового пользователя если его нет
         result = await session.execute(select(User).where(User.email == "test@example.com"))
-        existing_user = result.scalar_one_or_none()
-
-        if not existing_user:
+        if not result.scalar_one_or_none():
             await create_test_data(session)
+
+        # Создать admin-пользователя если его нет
+        result = await session.execute(select(User).where(User.email == "admin@trai.com"))
+        if not result.scalar_one_or_none():
+            await create_admin_user(session)
 
 
 @app.get("/")

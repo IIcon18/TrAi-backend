@@ -6,6 +6,7 @@ from typing import List
 
 from app.core.db import get_db
 from app.core.dependencies import get_current_user
+from app.models.user import RoleEnum
 from app.models.workout import Workout, Exercise
 from app.models.post_workout_test import PostWorkoutTest
 from app.models.user import User
@@ -212,12 +213,61 @@ async def get_workout_page(
     return {"workout": workout_response}
 
 
+@router.get("/ai-usage")
+async def get_ai_usage(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получить информацию об использовании AI-генераций тренировок."""
+    AI_WORKOUT_MONTHLY_LIMIT = 3
+
+    if current_user.role != RoleEnum.user:
+        return {"uses": 0, "limit": 0, "unlimited": True}
+
+    now = datetime.utcnow()
+    # Сбросить счётчик если прошёл месяц
+    if current_user.ai_workout_reset_date is None or \
+            (now.year > current_user.ai_workout_reset_date.year or
+             now.month > current_user.ai_workout_reset_date.month):
+        current_user.ai_workout_uses = 0
+        current_user.ai_workout_reset_date = now
+        await db.commit()
+        await db.refresh(current_user)
+
+    return {
+        "uses": current_user.ai_workout_uses,
+        "limit": AI_WORKOUT_MONTHLY_LIMIT,
+        "unlimited": False,
+        "remaining": AI_WORKOUT_MONTHLY_LIMIT - current_user.ai_workout_uses
+    }
+
+
 @router.post("/generate-ai")
 async def generate_ai_workout(
     request: AIWorkoutRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # Проверка лимита AI-генераций для бесплатных пользователей (3 в месяц)
+    AI_WORKOUT_MONTHLY_LIMIT = 3
+
+    if current_user.role == RoleEnum.user:
+        now = datetime.utcnow()
+        # Сбросить счётчик если прошёл месяц
+        if current_user.ai_workout_reset_date is None or \
+                (now.year > current_user.ai_workout_reset_date.year or
+                 now.month > current_user.ai_workout_reset_date.month):
+            current_user.ai_workout_uses = 0
+            current_user.ai_workout_reset_date = now
+            await db.commit()
+            await db.refresh(current_user)
+
+        if current_user.ai_workout_uses >= AI_WORKOUT_MONTHLY_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Лимит AI-генераций исчерпан ({AI_WORKOUT_MONTHLY_LIMIT}/мес). Перейдите на Pro для безлимитного доступа."
+            )
+
     # Небольшая ручная валидация/нормализация группы мышц,
     # чтобы поддержать старые значения с фронта и избежать 422 от Pydantic
     raw_group = request.muscle_group
@@ -297,6 +347,13 @@ async def generate_ai_workout(
         difficulty="medium"
     )
     db.add(workout)
+
+    # Инкрементировать счётчик AI-генераций для бесплатных пользователей
+    if current_user.role == RoleEnum.user:
+        current_user.ai_workout_uses += 1
+        if current_user.ai_workout_reset_date is None:
+            current_user.ai_workout_reset_date = datetime.utcnow()
+
     await db.commit()
     await db.refresh(workout)
 

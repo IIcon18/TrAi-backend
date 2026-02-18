@@ -5,6 +5,12 @@ from app.core.base import Base
 from datetime import datetime
 
 
+class RoleEnum(str, enum.Enum):
+    user = "user"
+    pro = "pro"
+    admin = "admin"
+
+
 class LifestyleEnum(str, enum.Enum):
     low = "low"
     medium = "medium"
@@ -30,6 +36,9 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     profile_completed = Column(Boolean, default=False)  # Флаг дозаполнения профиля
+    role = Column(Enum(RoleEnum), default=RoleEnum.user, nullable=False)
+    ai_workout_uses = Column(Integer, default=0, nullable=False)
+    ai_workout_reset_date = Column(DateTime, nullable=True)
 
     # Дозаполняемые поля (nullable)
     age = Column(Integer, nullable=True)
