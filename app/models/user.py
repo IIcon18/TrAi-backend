@@ -32,15 +32,15 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    nickname = Column(String, nullable=False)  # Обязательное при регистрации
+    nickname = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
-    profile_completed = Column(Boolean, default=False)  # Флаг дозаполнения профиля
+    profile_completed = Column(Boolean, default=False)
     role = Column(Enum(RoleEnum), default=RoleEnum.user, nullable=False)
     ai_workout_uses = Column(Integer, default=0, nullable=False)
     ai_workout_reset_date = Column(DateTime, nullable=True)
 
-    # Дозаполняемые поля (nullable)
+
     age = Column(Integer, nullable=True)
     gender = Column(Enum(GenderEnum), nullable=True)
     lifestyle = Column(Enum(LifestyleEnum), nullable=True)

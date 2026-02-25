@@ -23,7 +23,6 @@ async def get_current_user(
     )
 
     try:
-        # Декодируем JWT токен используя SECRET_KEY из настроек
         payload = jwt.decode(
             credentials.credentials,
             settings.SECRET_KEY,
@@ -35,10 +34,8 @@ async def get_current_user(
             raise credentials_exception
 
     except JWTError:
-        # Токен невалиден
         raise credentials_exception
 
-    # Ищем пользователя в базе по ID из токена
     user_result = await db.execute(
         select(User).where(User.id == int(user_id))
     )

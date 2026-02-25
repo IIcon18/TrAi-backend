@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 async def get_last_workout_info(db: AsyncSession, user_id: int) -> Dict[str, Any]:
-    """Получить информацию о последней тренировке"""
     try:
         workout_result = await db.execute(
             select(Workout)
@@ -51,7 +50,6 @@ async def get_last_workout_info(db: AsyncSession, user_id: int) -> Dict[str, Any
 
 
 async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyChartData]:
-    """Получить данные для графика энергии и настроения за последние 7 дней"""
     try:
         tests_result = await db.execute(
             select(PostWorkoutTest)
@@ -94,7 +92,6 @@ async def get_energy_chart_data(db: AsyncSession, user_id: int) -> List[EnergyCh
 
 
 async def get_weekly_progress(db: AsyncSession, user_id: int) -> Dict[str, Any]:
-    """Получить прогресс тренировок за последнюю неделю"""
     try:
         user_result = await db.execute(
             select(User.weekly_training_goal)
@@ -133,7 +130,6 @@ async def get_weekly_progress(db: AsyncSession, user_id: int) -> Dict[str, Any]:
 
 
 async def get_current_nutrition_consumption(db: AsyncSession, user_id: int) -> CurrentNutrition:
-    """Получить текущее потребление БЖУ за сегодня"""
     try:
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)

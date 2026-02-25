@@ -31,12 +31,10 @@ async def startup_event():
     from app.models.user import User
 
     async with AsyncSessionLocal() as session:
-        # Создать тестового пользователя если его нет
         result = await session.execute(select(User).where(User.email == "test@example.com"))
         if not result.scalar_one_or_none():
             await create_test_data(session)
 
-        # Создать admin-пользователя если его нет
         result = await session.execute(select(User).where(User.email == "admin@trai.com"))
         if not result.scalar_one_or_none():
             await create_admin_user(session)

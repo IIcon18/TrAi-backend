@@ -16,7 +16,6 @@ async def list_users(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить список всех пользователей (только admin)"""
     result = await db.execute(select(User).order_by(User.id))
     users = result.scalars().all()
     return [
@@ -38,7 +37,6 @@ async def get_user(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить детали пользователя (только admin)"""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
@@ -62,7 +60,6 @@ async def update_user_role(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Изменить роль пользователя (только admin)"""
     if user_id == current_user.id:
         raise HTTPException(
             status_code=400,
@@ -100,7 +97,6 @@ async def delete_user(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Удалить пользователя (только admin)"""
     if user_id == current_user.id:
         raise HTTPException(
             status_code=400,
