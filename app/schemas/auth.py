@@ -25,3 +25,16 @@ class AuthResponse(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+class UserMeResponse(BaseModel):
+    id: int
+    email: str
+    nickname: str
+    role: str
+    profile_completed: bool
+
+    class Config:
+        from_attributes = True
