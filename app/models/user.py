@@ -67,3 +67,4 @@ class User(Base):
     meals = relationship("Meal", back_populates="user", cascade="all, delete")
     progress = relationship("Progress", back_populates="user", cascade="all, delete")
     ai_recommendations = relationship("AIRecommendation", back_populates="user", cascade="all, delete")
+    attachments = relationship("Attachment", back_populates="user", cascade="all, delete")

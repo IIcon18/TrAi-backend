@@ -28,6 +28,9 @@ app.include_router(api_router, prefix="/api/v1")
 async def startup_event():
     await init_database()
 
+    from app.services import s3_service
+    await s3_service.ensure_bucket_exists()
+
     from app.models.user import User
 
     async with AsyncSessionLocal() as session:

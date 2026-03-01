@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, or_, asc, desc
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
+import math
 
 from app.core.db import get_db
 from app.core.dependencies import get_current_user
@@ -22,7 +23,10 @@ from app.schemas.workout import (
     PostWorkoutTestCreate,
     AIWorkoutAnalysis,
     AIWorkoutResponse,
-    ExerciseWithTips
+    ExerciseWithTips,
+    WorkoutUpdate,
+    WorkoutListItem,
+    WorkoutListResponse,
 )
 from app.services.ai_service import ai_service
 from app.models.progress import Progress
@@ -417,6 +421,11 @@ async def create_manual_workout(
     if muscle_group not in allowed_groups:
         raise HTTPException(status_code=400, detail=f"Invalid muscle_group: {muscle_group}")
 
+    # Валидация difficulty
+    difficulty = request.get("difficulty", "medium")
+    if difficulty not in {"easy", "medium", "hard"}:
+        raise HTTPException(status_code=400, detail=f"Invalid difficulty: {difficulty}")
+
     # Создаем тренировку
     workout = Workout(
         user_id=current_user.id,
@@ -425,7 +434,7 @@ async def create_manual_workout(
         scheduled_at=datetime.utcnow(),
         completed=False,
         ai_generated=False,
-        difficulty="medium"
+        difficulty=difficulty,
     )
     db.add(workout)
     await db.commit()
@@ -518,3 +527,116 @@ async def complete_workout(
         "completed": workout.completed,
         "total_weight_lifted": total_weight
     }
+
+
+# ==========================
+# СПИСОК И ФИЛЬТРАЦИЯ (Lab 3)
+# ==========================
+
+@router.get("/list", response_model=WorkoutListResponse)
+async def list_workouts(
+    search: Optional[str] = Query(None, description="Search by workout name"),
+    muscle_group: Optional[str] = Query(None),
+    difficulty: Optional[str] = Query(None),
+    completed: Optional[bool] = Query(None),
+    ai_generated: Optional[bool] = Query(None),
+    date_from: Optional[str] = Query(None, description="ISO date YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="ISO date YYYY-MM-DD"),
+    sort_by: str = Query("scheduled_at", pattern="^(scheduled_at|name|difficulty)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get paginated, filtered, sorted list of workouts."""
+    query = select(Workout).where(Workout.user_id == current_user.id)
+
+    if search:
+        query = query.where(Workout.name.ilike(f"%{search}%"))
+    if muscle_group:
+        query = query.where(Workout.muscle_group == muscle_group)
+    if difficulty:
+        query = query.where(Workout.difficulty == difficulty)
+    if completed is not None:
+        query = query.where(Workout.completed == completed)
+    if ai_generated is not None:
+        query = query.where(Workout.ai_generated == ai_generated)
+    if date_from:
+        query = query.where(Workout.scheduled_at >= datetime.fromisoformat(date_from))
+    if date_to:
+        query = query.where(Workout.scheduled_at <= datetime.fromisoformat(date_to + "T23:59:59"))
+
+    # Count total
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar_one()
+
+    # Sorting
+    sort_col = getattr(Workout, sort_by)
+    order_fn = asc if sort_order == "asc" else desc
+    query = query.order_by(order_fn(sort_col))
+
+    # Pagination
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
+
+    result = await db.execute(query)
+    workouts = result.scalars().all()
+
+    return WorkoutListResponse(
+        items=[WorkoutListItem.model_validate(w) for w in workouts],
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=math.ceil(total / page_size) if total > 0 else 1,
+    )
+
+
+@router.put("/{workout_id}")
+async def update_workout(
+    workout_id: int,
+    data: WorkoutUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Edit a workout (owner or admin only)."""
+    result = await db.execute(select(Workout).where(Workout.id == workout_id))
+    workout = result.scalar_one_or_none()
+
+    if not workout:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    if workout.user_id != current_user.id and current_user.role != RoleEnum.admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if data.name is not None:
+        workout.name = data.name
+    if data.muscle_group is not None:
+        workout.muscle_group = data.muscle_group
+    if data.difficulty is not None:
+        workout.difficulty = data.difficulty
+    if data.scheduled_at is not None:
+        workout.scheduled_at = data.scheduled_at
+
+    await db.commit()
+    await db.refresh(workout)
+    return {"id": workout.id, "name": workout.name, "muscle_group": workout.muscle_group,
+            "difficulty": workout.difficulty, "scheduled_at": workout.scheduled_at.isoformat()}
+
+
+@router.delete("/{workout_id}", status_code=204)
+async def delete_workout(
+    workout_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a workout (owner or admin only)."""
+    result = await db.execute(select(Workout).where(Workout.id == workout_id))
+    workout = result.scalar_one_or_none()
+
+    if not workout:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    if workout.user_id != current_user.id and current_user.role != RoleEnum.admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    await db.delete(workout)
+    await db.commit()

@@ -11,6 +11,7 @@ from app.models.progress import Progress
 from app.models.post_workout_test import PostWorkoutTest
 from app.models.ai_recommendation import AIRecommendation
 from app.models.product import Product, AINutritionCache
+from app.models.attachment import Attachment
 
 DATABASE_URL = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
@@ -107,6 +108,26 @@ async def init_database():
                     WHERE table_name='users' AND column_name='ai_workout_reset_date'
                 ) THEN
                     ALTER TABLE users ADD COLUMN ai_workout_reset_date TIMESTAMP;
+                END IF;
+
+                -- Lab 3: Create attachments table if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_name='attachments'
+                ) THEN
+                    CREATE TABLE attachments (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        entity_type VARCHAR(50) NOT NULL,
+                        entity_id INTEGER NOT NULL,
+                        filename VARCHAR(255) NOT NULL,
+                        s3_key VARCHAR(512) NOT NULL UNIQUE,
+                        content_type VARCHAR(100) NOT NULL,
+                        size INTEGER NOT NULL,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    );
+                    CREATE INDEX idx_attachments_user_id ON attachments(user_id);
+                    CREATE INDEX idx_attachments_entity ON attachments(entity_type, entity_id);
                 END IF;
             END $$;
             """)

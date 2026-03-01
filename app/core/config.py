@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    MINIO_ENDPOINT: str = "minio:9000"
+    MINIO_ACCESS_KEY: str = "trai_minio_user"
+    MINIO_SECRET_KEY: str = "trai_minio_password"
+    MINIO_BUCKET: str = "trai-attachments"
+    MINIO_PUBLIC_URL: str = "http://localhost:9000"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

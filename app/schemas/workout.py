@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
-from datetime import datetime
+from typing import Optional, List, Dict, Literal
+from datetime import datetime, date
 from enum import Enum
 
 class MuscleGroup(str, Enum):
@@ -110,3 +110,32 @@ class AIWorkoutResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class WorkoutUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=3, max_length=100)
+    muscle_group: Optional[str] = None
+    difficulty: Optional[str] = None
+    scheduled_at: Optional[datetime] = None
+
+
+class WorkoutListItem(BaseModel):
+    id: int
+    name: str
+    muscle_group: Optional[str]
+    difficulty: Optional[str]
+    scheduled_at: datetime
+    completed: bool
+    ai_generated: bool
+    total_weight_lifted: float
+
+    class Config:
+        from_attributes = True
+
+
+class WorkoutListResponse(BaseModel):
+    items: List[WorkoutListItem]
+    total: int
+    page: int
+    page_size: int
+    pages: int
