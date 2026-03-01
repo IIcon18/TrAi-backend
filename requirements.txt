@@ -14,3 +14,4 @@ python-jose[cryptography]==3.3.0
 httpx==0.25.2
 aiobotocore==2.15.2
 aiofiles==23.2.1
+redis[asyncio]==5.0.1

@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "trai-attachments"
     MINIO_PUBLIC_URL: str = "http://localhost:9000"
 
+    OPENFOODFACTS_BASE_URL: str = "https://world.openfoodfacts.org"
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
+    REDIS_URL: str = "redis://redis:6379/0"
+
     class Config:
         env_file = ".env"
         case_sensitive = True
