@@ -1,73 +1,207 @@
 import os
 import json
 import httpx
+import re
 from typing import Dict, Any, List
 
 
 class AIService:
+    @staticmethod
+    def _extract_json_from_response(text: str) -> str:
+        """Извлечь JSON из ответа AI (может быть обернут в markdown)"""
+        # Убираем markdown блоки ```json ... ``` или ``` ... ```
+        text = text.strip()
+
+        # Паттерн для markdown кодблока
+        markdown_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        match = re.search(markdown_pattern, text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+
+        # Ищем просто JSON объект
+        json_pattern = r'\{.*\}'
+        match = re.search(json_pattern, text, re.DOTALL)
+        if match:
+            return match.group(0).strip()
+
+        return text.strip()
+
+    @staticmethod
+    def _extract_text_from_response(text: str) -> str:
+        """Извлечь текст из ответа AI (может быть JSON или просто текст)"""
+        text = text.strip()
+
+        # Убираем markdown блоки сначала
+        markdown_pattern = r'```(?:json)?\s*(.*?)\s*```'
+        match = re.search(markdown_pattern, text, re.DOTALL)
+        if match:
+            text = match.group(1).strip()
+
+        # Пробуем парсить как JSON
+        try:
+            data = json.loads(text)
+            # Если JSON - ищем поля с текстом
+            if isinstance(data, dict):
+                # Ищем поля: message, greeting, text, content
+                for key in ['message', 'greeting', 'text', 'content', 'response']:
+                    if key in data:
+                        return str(data[key]).strip()
+            return text
+        except:
+            # Не JSON - просто текст
+            # Убираем кавычки если есть
+            if text.startswith('"') and text.endswith('"'):
+                text = text[1:-1]
+            return text.strip()
     def __init__(self):
-        self.api_key = os.getenv("GROQ_API_KEY")
-        self.base_url = "https://api.groq.com/openai/v1/chat/completions"
+        # API ключи для разных провайдеров
+        self.github_token = os.getenv("GITHUB_TOKEN")
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
 
-        print(f"Groq AI Service initialized. API Key: {'PRESENT' if self.api_key else 'NOT FOUND'}")
+        self.last_used_provider = None  # Для tracking
 
-    async def _make_groq_request(self, prompt: str) -> str:
-        if not self.api_key:
-            raise Exception("AI сервис не настроен. Добавьте GROQ_API_KEY в .env файл")
+        print(f"AI Service initialized:")
+        print(f"  - GitHub Models: {'✅' if self.github_token else '❌'}")
+        print(f"  - Gemini: {'✅' if self.gemini_api_key else '❌'}")
+
+    async def _make_github_request(self, prompt: str) -> str:
+        """Запрос к GitHub Models API"""
+        if not self.github_token:
+            raise Exception("GitHub token не настроен")
 
         try:
-            print(f"Sending request to Groq API...")
-            print(f"Prompt: {prompt[:100]}...")
+            print(f"📤 Sending request to GitHub Models...")
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    self.base_url,
+                    "https://models.inference.ai.azure.com/chat/completions",
                     headers={
                         "Content-Type": "application/json",
-                        "Authorization": f"Bearer {self.api_key}"
+                        "Authorization": f"Bearer {self.github_token}"
                     },
                     json={
-                        "model": "llama-3.3-70b-versatile",
+                        "model": "gpt-4o-mini",
                         "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a helpful AI assistant. Always respond with valid JSON when requested."
+                            },
                             {
                                 "role": "user",
                                 "content": prompt
                             }
                         ],
-                        "temperature": 0.7,
-                        "max_tokens": 500,
-                        "stream": False
+                        "temperature": 0.3,
+                        "max_tokens": 2000
                     },
                     timeout=30.0
                 )
 
-                print(f"Groq API response status: {response.status_code}")
+                print(f"GitHub Models response status: {response.status_code}")
 
                 if response.status_code == 200:
                     result = response.json()
-                    print(f"Groq response success!")
-
                     if "choices" in result and len(result["choices"]) > 0:
-                        choice = result["choices"][0]
-                        if "message" in choice and "content" in choice["message"]:
-                            text = choice["message"]["content"]
-                            print(f"Groq response text: {text}")
-                            return text
-                    raise Exception("Неверный формат ответа от Groq API")
+                        text = result["choices"][0]["message"]["content"]
+                        print(f"✅ GitHub Models response: {text[:100]}...")
+                        self.last_used_provider = "github_models"
+                        return text
+                    raise Exception("Invalid GitHub Models response format")
                 else:
-                    error_msg = f"Ошибка Groq API: {response.status_code}"
+                    error_msg = f"GitHub Models error: {response.status_code}"
                     try:
                         error_data = response.json()
                         if "error" in error_data:
-                            error_msg += f" - {error_data['error']['message']}"
+                            error_msg += f" - {error_data['error'].get('message', '')}"
                     except:
-                        error_msg += f" - {response.text}"
+                        error_msg += f" - {response.text[:200]}"
                     raise Exception(error_msg)
 
         except httpx.TimeoutException:
-            raise Exception("Таймаут подключения к Groq API")
+            raise Exception("GitHub Models timeout")
         except Exception as e:
-            raise Exception(f"Ошибка подключения к Groq API: {str(e)}")
+            raise Exception(f"GitHub Models error: {str(e)}")
+
+    async def _make_gemini_request(self, prompt: str) -> str:
+        """Запрос к Google Gemini API"""
+        if not self.gemini_api_key:
+            raise Exception("Gemini API key не настроен")
+
+        try:
+            print(f"📤 Sending request to Gemini...")
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_api_key}",
+                    headers={"Content-Type": "application/json"},
+                    json={
+                        "contents": [{
+                            "parts": [{
+                                "text": f"You are a nutrition expert. {prompt}"
+                            }]
+                        }],
+                        "generationConfig": {
+                            "temperature": 0.3,
+                            "maxOutputTokens": 2000
+                        }
+                    },
+                    timeout=30.0
+                )
+
+                print(f"Gemini response status: {response.status_code}")
+
+                if response.status_code == 200:
+                    result = response.json()
+                    if "candidates" in result and len(result["candidates"]) > 0:
+                        text = result["candidates"][0]["content"]["parts"][0]["text"]
+                        print(f"✅ Gemini response: {text[:100]}...")
+                        self.last_used_provider = "gemini"
+                        return text
+                    raise Exception("Invalid Gemini response format")
+                else:
+                    error_msg = f"Gemini error: {response.status_code}"
+                    try:
+                        error_data = response.json()
+                        if "error" in error_data:
+                            error_msg += f" - {error_data['error'].get('message', '')}"
+                    except:
+                        error_msg += f" - {response.text[:200]}"
+                    raise Exception(error_msg)
+
+        except httpx.TimeoutException:
+            raise Exception("Gemini timeout")
+        except Exception as e:
+            raise Exception(f"Gemini error: {str(e)}")
+
+    async def _make_ai_request(self, prompt: str) -> str:
+        """
+        Универсальный метод для AI запросов с fallback цепочкой.
+        Пробует GitHub Models → Gemini
+        """
+        providers = []
+
+        if self.github_token:
+            providers.append(("GitHub Models", self._make_github_request))
+        if self.gemini_api_key:
+            providers.append(("Gemini", self._make_gemini_request))
+
+        if not providers:
+            raise Exception("Нет доступных AI провайдеров. Настройте GITHUB_TOKEN или GEMINI_API_KEY")
+
+        last_error = None
+
+        for provider_name, provider_func in providers:
+            try:
+                print(f"🔄 Trying {provider_name}...")
+                response = await provider_func(prompt)
+                return response
+            except Exception as e:
+                print(f"❌ {provider_name} failed: {e}")
+                last_error = e
+                continue
+
+        # Все провайдеры упали
+        raise Exception(f"Все AI провайдеры недоступны. Последняя ошибка: {last_error}")
 
     def _analyze_workout_history(self, workout_history: List[Dict[str, Any]], target_muscle: str) -> str:
         """Проанализировать историю тренировок для промпта"""
@@ -181,15 +315,13 @@ class AIService:
         """
 
         try:
-            response = await self._make_groq_request(prompt)
+            response = await self._make_ai_request(prompt)
 
-            # Очистка ответа
-            response = response.strip()
-            if response.startswith('"') and response.endswith('"'):
-                response = response[1:-1]
+            # Извлекаем текст (может быть JSON или просто текст)
+            text = self._extract_text_from_response(response)
 
-            print(f"🎯 AI Greeting Response: {response}")
-            return response
+            print(f"🎯 AI Greeting Response: {text}")
+            return text
 
         except Exception as e:
             print(f"🎯 AI Greeting Error: {e}")
@@ -230,7 +362,7 @@ class AIService:
         """
         
         try:
-            response = await self._make_groq_request(prompt)
+            response = await self._make_ai_request(prompt)
             response = response.strip()
             if response.startswith('"') and response.endswith('"'):
                 response = response[1:-1]
@@ -279,14 +411,16 @@ class AIService:
         """
         
         try:
-            response = await self._make_groq_request(prompt)
-            response = response.strip()
-            if response.startswith('"') and response.endswith('"'):
-                response = response[1:-1]
-            words = response.split()
+            response = await self._make_ai_request(prompt)
+
+            # Извлекаем текст (может быть JSON или просто текст)
+            text = self._extract_text_from_response(response)
+
+            # Ограничиваем длину
+            words = text.split()
             if len(words) > 10:
-                response = ' '.join(words[:10])
-            return response
+                text = ' '.join(words[:10])
+            return text
         except Exception as e:
             print(f"AI Weekly Progress Message Error: {e}")
             if completion_rate >= 80:
@@ -297,7 +431,7 @@ class AIService:
                 return "Добавь еще тренировку на этой неделе! 🎯"
 
     async def generate_profile_tips(self, user_data: Dict[str, Any], progress_data: Dict[str, Any]) -> List[str]:
-        """Сгенерировать персональные советы для профиля через Groq"""
+        """Сгенерировать персональные советы для профиля через AI"""
         print(f"Generating profile tips for user: {user_data}")
 
         prompt = f"""
@@ -324,10 +458,10 @@ class AIService:
         3. Следи за осанкой при выполнении упражнений
         """
 
-        response = await self._make_groq_request(prompt)
-        print(f"=== FULL GROQ RESPONSE ===")
+        response = await self._make_ai_request(prompt)
+        print(f"=== FULL AI RESPONSE ===")
         print(response)
-        print(f"=== END GROQ RESPONSE ===")
+        print(f"=== END AI RESPONSE ===")
 
         tips = []
         lines = response.split('\n')
@@ -353,7 +487,10 @@ class AIService:
         return tips[:3]
 
     async def analyze_dish_nutrition(self, dish_name: str, grams: float) -> Dict[str, float]:
-        """Проанализировать блюдо и рассчитать БЖУ через Groq"""
+        """
+        Проанализировать блюдо и рассчитать БЖУ через AI с fallback цепочкой.
+        Порядок: GitHub Models → Gemini
+        """
         prompt = f"""
         Ты - эксперт по питанию. Проанализируй блюдо и рассчитай пищевую ценность на {grams} грамм.
 
@@ -364,29 +501,45 @@ class AIService:
 
         {{
             "calories": число,
-            "protein": число, 
+            "protein": число,
             "fat": число,
             "carbs": число
         }}
         """
 
-        response = await self._make_groq_request(prompt)
-        print(f"Groq Response for {dish_name}: {response}")
+        # Fallback chain: пробуем провайдеров по порядку
+        providers = []
 
-        try:
-            start_idx = response.find('{')
-            end_idx = response.rfind('}') + 1
-            if start_idx != -1 and end_idx != -1:
-                json_str = response[start_idx:end_idx]
+        if self.github_token:
+            providers.append(("GitHub Models", self._make_github_request))
+        if self.gemini_api_key:
+            providers.append(("Gemini", self._make_gemini_request))
+
+        last_error = None
+
+        for provider_name, provider_func in providers:
+            try:
+                print(f"🔄 Trying {provider_name} for dish analysis...")
+                response = await provider_func(prompt)
+                print(f"Response from {provider_name}: {response[:200]}...")
+
+                # Парсим JSON из ответа (убираем markdown блоки если есть)
+                json_str = self._extract_json_from_response(response)
                 nutrition_data = json.loads(json_str)
 
                 required_fields = ["calories", "protein", "fat", "carbs"]
                 if all(field in nutrition_data for field in required_fields):
+                    print(f"✅ Success with {provider_name}!")
                     return nutrition_data
-        except Exception as e:
-            print(f"Nutrition Analysis Error: {e}")
 
-        raise Exception("Не удалось проанализировать питательность блюда")
+            except Exception as e:
+                print(f"❌ {provider_name} failed: {e}")
+                last_error = e
+                continue
+
+        # Все провайдеры упали
+        error_msg = f"Все AI провайдеры недоступны. Последняя ошибка: {last_error}"
+        raise Exception(error_msg)
 
     async def generate_progress_analysis(
             self,
@@ -456,16 +609,15 @@ class AIService:
         СФОРМУЛИРУЙ ОТВЕТ:
         """
 
-        response = await self._make_groq_request(prompt)
-        print(f"=== GROQ PROGRESS ANALYSIS RESPONSE ===")
+        response = await self._make_ai_request(prompt)
+        print(f"=== AI PROGRESS ANALYSIS RESPONSE ===")
         print(response)
-        print(f"=== END GROGRESS ANALYSIS RESPONSE ===")
+        print(f"=== END PROGRESS ANALYSIS RESPONSE ===")
 
-        response = response.strip()
-        if response.startswith('"') and response.endswith('"'):
-            response = response[1:-1]
+        # Извлекаем текст (может быть JSON или markdown)
+        text = self._extract_text_from_response(response)
 
-        return response
+        return text
 
     async def generate_ai_workout(
             self,
@@ -495,45 +647,76 @@ class AIService:
         ИСТОРИЯ ТРЕНИРОВОК:
         {history_analysis}
 
-        ТРЕБОВАНИЯ:
+        ТРЕБОВАНИЯ К ТРЕНИРОВКЕ:
         - Создай тренировку из 3-4 упражнений
+        - Упражнения должны быть безопасными и эффективными
         - Учитывай уровень подготовки пользователя
-        - Упражнения должны быть безопасными
         - Учти историю тренировок: избегай повторов, предлагай прогрессию
-        - Для начинающих: фокус на технике, базовые упражнения
-        - Для продвинутых: более сложные упражнения, прогрессия нагрузки
-        - Верни ответ в формате JSON:
+        - Для начинающих: фокус на технике, базовые упражнения с собственным весом
+        - Для продвинутых: более сложные упражнения, добавляй оборудование
+
+        ТРЕБОВАНИЯ К УПРАЖНЕНИЯМ:
+        - Название должно быть понятным и описательным (не "Супермен", а "Подъем корпуса лежа на животе (супермен)")
+        - Description - ОБЯЗАТЕЛЬНО короткая (1-2 предложения) инструкция КАК ВЫПОЛНЯТЬ упражнение
+        - Equipment - укажи какое оборудование нужно: "bodyweight" (собственный вес), "dumbbells" (гантели), "barbell" (штанга), "resistance_band" (резинка), "none" (без оборудования)
+        - Weight - указывай ТОЛЬКО если equipment требует вес (гантели/штанга), иначе 0
+        - Интенсивность: варьируй между low/medium/high в рамках одной тренировки
+        - Sets/Reps: подбирай под уровень пользователя (начинающий: 3x8-10, средний: 3-4x10-12, продвинутый: 4-5x12-15)
+
+        ПРИМЕРЫ ХОРОШИХ УПРАЖНЕНИЙ:
+        {{
+            "name": "Отжимания от пола",
+            "description": "Прими упор лежа, руки на ширине плеч. Опустись вниз, коснувшись грудью пола, затем выпрямись.",
+            "equipment": "bodyweight",
+            "muscle_group": "upper_body_push",
+            "sets": 3,
+            "reps": 10,
+            "weight": 0,
+            "intensity": "medium"
+        }}
 
         {{
+            "name": "Приседания с гантелями",
+            "description": "Держи гантели в руках, ноги на ширине плеч. Присядь до параллели с полом, затем вернись в исходное положение.",
+            "equipment": "dumbbells",
+            "muscle_group": "lower_body",
+            "sets": 4,
+            "reps": 12,
+            "weight": 10,
+            "intensity": "high"
+        }}
+
+        ФОРМАТ JSON:
+        {{
             "name": "Название тренировки",
-            "description": "Краткое описание",
+            "description": "Краткое описание тренировки (1 предложение)",
             "exercises": [
                 {{
                     "name": "Название упражнения",
-                    "muscle_group": "группа мышц",
+                    "description": "Как выполнять (1-2 предложения)",
+                    "equipment": "bodyweight/dumbbells/barbell/resistance_band/none",
+                    "muscle_group": "{muscle_group}",
                     "sets": 3,
                     "reps": 10,
-                    "intensity": "low/medium/high",
-                    "reason": "почему выбрано это упражнение"
+                    "weight": 0,
+                    "intensity": "low/medium/high"
                 }}
             ]
         }}
 
-        ВАЖНО: Верни ТОЛЬКО JSON без дополнительного текста.
+        ВАЖНО: Верни ТОЛЬКО JSON без дополнительного текста. Обязательно заполни description для каждого упражнения!
         """
 
-        print(f"🔧 Sending request to Groq API...")
+        print(f"🔧 Sending request to AI API...")
 
         try:
-            response = await self._make_groq_request(prompt)
-            print(f"🔧 Groq API response: {response}")
+            response = await self._make_ai_request(prompt)
+            print(f"🔧 AI API response: {response}")
 
-            start_idx = response.find('{')
-            end_idx = response.rfind('}') + 1
-            if start_idx != -1 and end_idx != -1:
-                json_str = response[start_idx:end_idx]
-                workout_data = json.loads(json_str)
-                return workout_data
+            # Извлекаем JSON из ответа (убираем markdown блоки если есть)
+            json_str = self._extract_json_from_response(response)
+            workout_data = json.loads(json_str)
+            return workout_data
         except Exception as e:
             print(f"🔧 AI Generation Error: {e}")
             raise Exception(f"Не удалось сгенерировать тренировку: {str(e)}")
@@ -557,7 +740,7 @@ class AIService:
         Будь конкретным и поддерживающим.
         """
 
-        return await self._make_groq_request(prompt)
+        return await self._make_ai_request(prompt)
 
 
 ai_service = AIService()

@@ -10,9 +10,10 @@ from app.models.meal import Meal, Dish
 from app.models.progress import Progress
 from app.models.post_workout_test import PostWorkoutTest
 from app.models.ai_recommendation import AIRecommendation
+from app.models.product import Product, AINutritionCache
+from app.models.attachment import Attachment
 
 DATABASE_URL = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-print("ASYNC DATABASE_URL =", DATABASE_URL)
 
 engine = create_async_engine(
     DATABASE_URL,
@@ -33,11 +34,9 @@ AsyncSessionLocal = async_sessionmaker(
 async def init_database():
     async with engine.begin() as conn:
         if settings.RESET_DATABASE:
-            print("RESET_DATABASE=true - recreating DB")
             await conn.run_sync(Base.metadata.drop_all)
 
         await conn.run_sync(Base.metadata.create_all)
-        print("Tables created/verified")
 
         # Migration: add new columns if they don't exist and make fields nullable
         await conn.execute(
@@ -67,10 +66,72 @@ async def init_database():
                 ALTER TABLE users ALTER COLUMN height DROP NOT NULL;
                 ALTER TABLE users ALTER COLUMN weight DROP NOT NULL;
                 ALTER TABLE users ALTER COLUMN lifestyle DROP NOT NULL;
+
+                -- Add description column to exercises if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='exercises' AND column_name='description'
+                ) THEN
+                    ALTER TABLE exercises ADD COLUMN description VARCHAR;
+                END IF;
+
+                -- Add equipment column to exercises if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='exercises' AND column_name='equipment'
+                ) THEN
+                    ALTER TABLE exercises ADD COLUMN equipment VARCHAR;
+                END IF;
+
+                -- RBAC: Add role enum type and column
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'roleenum') THEN
+                    CREATE TYPE roleenum AS ENUM ('user', 'pro', 'admin');
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='users' AND column_name='role'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN role roleenum DEFAULT 'user' NOT NULL;
+                END IF;
+
+                -- RBAC: Add AI workout usage tracking
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='users' AND column_name='ai_workout_uses'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN ai_workout_uses INTEGER DEFAULT 0 NOT NULL;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='users' AND column_name='ai_workout_reset_date'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN ai_workout_reset_date TIMESTAMP;
+                END IF;
+
+                -- Lab 3: Create attachments table if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_name='attachments'
+                ) THEN
+                    CREATE TABLE attachments (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        entity_type VARCHAR(50) NOT NULL,
+                        entity_id INTEGER NOT NULL,
+                        filename VARCHAR(255) NOT NULL,
+                        s3_key VARCHAR(512) NOT NULL UNIQUE,
+                        content_type VARCHAR(100) NOT NULL,
+                        size INTEGER NOT NULL,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    );
+                    CREATE INDEX idx_attachments_user_id ON attachments(user_id);
+                    CREATE INDEX idx_attachments_entity ON attachments(entity_type, entity_id);
+                END IF;
             END $$;
             """)
         )
-        print("Migration completed")
 
 
 async def get_db():

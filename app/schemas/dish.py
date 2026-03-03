@@ -42,6 +42,11 @@ class SearchDishRequest(BaseModel):
     query: str
 
 
+class AnalyzeDishRequest(BaseModel):
+    query: str
+    grams: float = 100
+
+
 class DishSearchResult(BaseModel):
     id: int
     name: str
