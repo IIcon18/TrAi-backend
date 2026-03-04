@@ -43,7 +43,7 @@ async def list_users(
             role_enum = RoleEnum(role)
             query = query.where(User.role == role_enum)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid role: {role}")
+            raise HTTPException(status_code=400, detail=f"Недопустимая роль: {role}")
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar_one()

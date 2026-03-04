@@ -41,7 +41,7 @@ async def get_activity_chart_data(
         tests = tests_result.scalars().all()
 
         activity_data = []
-        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        day_names = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 
         for test in tests:
             day_name = day_names[test.created_at.weekday()]
@@ -62,7 +62,7 @@ async def get_activity_chart_data(
 
     except Exception as e:
         logger.error(f"Ошибка в get_activity_chart_data: {e}")
-        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        day_names = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
         return [
             {"day": day_names[i], "mood": random.randint(6, 10), "energy": random.randint(6, 10)}
             for i in range(7)

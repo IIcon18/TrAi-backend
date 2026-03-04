@@ -285,7 +285,7 @@ async def generate_ai_workout(
 
     allowed_groups = {"upper_body_push", "upper_body_pull", "core_stability", "lower_body"}
     if normalized_group not in allowed_groups:
-        raise HTTPException(status_code=400, detail=f"Invalid muscle_group: {raw_group}")
+        raise HTTPException(status_code=400, detail=f"Недопустимая группа мышц: {raw_group}")
 
     # Получаем реальную цель пользователя
     user_goal = "general_fitness"
@@ -419,12 +419,12 @@ async def create_manual_workout(
     muscle_group = request.get("muscle_group", "upper_body_push")
     allowed_groups = {"upper_body_push", "upper_body_pull", "core_stability", "lower_body"}
     if muscle_group not in allowed_groups:
-        raise HTTPException(status_code=400, detail=f"Invalid muscle_group: {muscle_group}")
+        raise HTTPException(status_code=400, detail=f"Недопустимая группа мышц: {muscle_group}")
 
     # Валидация difficulty
     difficulty = request.get("difficulty", "medium")
     if difficulty not in {"easy", "medium", "hard"}:
-        raise HTTPException(status_code=400, detail=f"Invalid difficulty: {difficulty}")
+        raise HTTPException(status_code=400, detail=f"Недопустимая сложность: {difficulty}")
 
     # Создаем тренировку
     workout = Workout(
@@ -500,10 +500,10 @@ async def complete_workout(
     workout = result.scalar_one_or_none()
 
     if not workout:
-        raise HTTPException(status_code=404, detail="Workout not found")
+        raise HTTPException(status_code=404, detail="Тренировка не найдена")
 
     if workout.completed:
-        raise HTTPException(status_code=400, detail="Workout already completed")
+        raise HTTPException(status_code=400, detail="Тренировка уже завершена")
 
     # Calculate total weight lifted from exercises
     exercises_result = await db.execute(
@@ -522,7 +522,7 @@ async def complete_workout(
     await update_progress_on_workout_completion(db, current_user.id, workout)
 
     return {
-        "message": "Workout completed successfully",
+        "message": "Тренировка успешно завершена",
         "workout_id": workout.id,
         "completed": workout.completed,
         "total_weight_lifted": total_weight
@@ -604,9 +604,9 @@ async def update_workout(
     workout = result.scalar_one_or_none()
 
     if not workout:
-        raise HTTPException(status_code=404, detail="Workout not found")
+        raise HTTPException(status_code=404, detail="Тренировка не найдена")
     if workout.user_id != current_user.id and current_user.role != RoleEnum.admin:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
 
     if data.name is not None:
         workout.name = data.name
@@ -634,9 +634,9 @@ async def delete_workout(
     workout = result.scalar_one_or_none()
 
     if not workout:
-        raise HTTPException(status_code=404, detail="Workout not found")
+        raise HTTPException(status_code=404, detail="Тренировка не найдена")
     if workout.user_id != current_user.id and current_user.role != RoleEnum.admin:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
 
     await db.delete(workout)
     await db.commit()

@@ -24,7 +24,7 @@ async def upload_attachment(
     """Upload a file and attach it to an entity (entity_type: 'user', 'workout', 'progress')."""
     allowed_entity_types = {"user", "workout", "progress"}
     if entity_type not in allowed_entity_types:
-        raise HTTPException(status_code=400, detail=f"entity_type must be one of: {allowed_entity_types}")
+        raise HTTPException(status_code=400, detail=f"entity_type должен быть одним из: {allowed_entity_types}")
 
     s3_key, content_type, size = await s3_service.upload_file(file)
 
@@ -95,9 +95,9 @@ async def get_presigned_url(
     attachment = result.scalar_one_or_none()
 
     if not attachment:
-        raise HTTPException(status_code=404, detail="Attachment not found")
+        raise HTTPException(status_code=404, detail="Вложение не найдено")
     if attachment.user_id != current_user.id and current_user.role != RoleEnum.admin:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
 
     url = await s3_service.generate_presigned_url(attachment.s3_key, expires=3600)
     return {
@@ -118,9 +118,9 @@ async def delete_attachment(
     attachment = result.scalar_one_or_none()
 
     if not attachment:
-        raise HTTPException(status_code=404, detail="Attachment not found")
+        raise HTTPException(status_code=404, detail="Вложение не найдено")
     if attachment.user_id != current_user.id and current_user.role != RoleEnum.admin:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
 
     await s3_service.delete_file(attachment.s3_key)
     await db.delete(attachment)

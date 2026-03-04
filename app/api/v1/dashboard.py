@@ -528,7 +528,7 @@ async def get_demo_dashboard(user: User = None, progress_fact: str = None) -> Da
     return DashboardResponse(
         user_greeting=user_greeting,
         progress_fact=progress_fact,
-        last_training_message="Your last training was upper body push yesterday 💪",
+        last_training_message="Ваша последняя тренировка: верхняя часть тела (толчок) вчера 💪",
         weekly_progress_message="Отличная неделя! Продолжай в том же духе! 🔥",
         energy_chart=demo_chart_data,
         weekly_progress=WeeklyProgress(

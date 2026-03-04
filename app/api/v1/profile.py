@@ -65,7 +65,7 @@ async def get_profile(
 
                 ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
             except Exception as ai_err:
-                ai_tips_models = [AITip(tip="AI tips temporarily unavailable. Please try again later.")]
+                ai_tips_models = [AITip(tip="ИИ-подсказки временно недоступны. Попробуйте позже.")]
 
         return ProfileResponse(
             id=user.id,
