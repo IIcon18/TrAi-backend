@@ -50,6 +50,11 @@ async def not_found_handler(request: Request, exc):
     return JSONResponse(status_code=404, content={"detail": "Не найдено"})
 
 
+@app.get("/health", include_in_schema=False)
+async def health():
+    return {"status": "ok"}
+
+
 @app.get("/robots.txt", include_in_schema=False)
 async def robots_txt():
     content = (
