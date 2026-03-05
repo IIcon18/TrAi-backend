@@ -13,13 +13,13 @@ class AIService:
         text = text.strip()
 
         # Паттерн для markdown кодблока
-        markdown_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        markdown_pattern = r"```(?:json)?\s*(\{.*?\})\s*```"
         match = re.search(markdown_pattern, text, re.DOTALL)
         if match:
             return match.group(1).strip()
 
         # Ищем просто JSON объект
-        json_pattern = r'\{.*\}'
+        json_pattern = r"\{.*\}"
         match = re.search(json_pattern, text, re.DOTALL)
         if match:
             return match.group(0).strip()
@@ -32,7 +32,7 @@ class AIService:
         text = text.strip()
 
         # Убираем markdown блоки сначала
-        markdown_pattern = r'```(?:json)?\s*(.*?)\s*```'
+        markdown_pattern = r"```(?:json)?\s*(.*?)\s*```"
         match = re.search(markdown_pattern, text, re.DOTALL)
         if match:
             text = match.group(1).strip()
@@ -43,7 +43,7 @@ class AIService:
             # Если JSON - ищем поля с текстом
             if isinstance(data, dict):
                 # Ищем поля: message, greeting, text, content
-                for key in ['message', 'greeting', 'text', 'content', 'response']:
+                for key in ["message", "greeting", "text", "content", "response"]:
                     if key in data:
                         return str(data[key]).strip()
             return text
@@ -53,6 +53,7 @@ class AIService:
             if text.startswith('"') and text.endswith('"'):
                 text = text[1:-1]
             return text.strip()
+
     def __init__(self):
         # API ключи для разных провайдеров
         self.github_token = os.getenv("GITHUB_TOKEN")
@@ -77,24 +78,21 @@ class AIService:
                     "https://models.inference.ai.azure.com/chat/completions",
                     headers={
                         "Content-Type": "application/json",
-                        "Authorization": f"Bearer {self.github_token}"
+                        "Authorization": f"Bearer {self.github_token}",
                     },
                     json={
                         "model": "gpt-4o-mini",
                         "messages": [
                             {
                                 "role": "system",
-                                "content": "You are a helpful AI assistant. Always respond with valid JSON when requested."
+                                "content": "You are a helpful AI assistant. Always respond with valid JSON when requested.",
                             },
-                            {
-                                "role": "user",
-                                "content": prompt
-                            }
+                            {"role": "user", "content": prompt},
                         ],
                         "temperature": 0.3,
-                        "max_tokens": 2000
+                        "max_tokens": 2000,
                     },
-                    timeout=30.0
+                    timeout=30.0,
                 )
 
                 print(f"GitHub Models response status: {response.status_code}")
@@ -135,17 +133,19 @@ class AIService:
                     f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_api_key}",
                     headers={"Content-Type": "application/json"},
                     json={
-                        "contents": [{
-                            "parts": [{
-                                "text": f"You are a nutrition expert. {prompt}"
-                            }]
-                        }],
+                        "contents": [
+                            {
+                                "parts": [
+                                    {"text": f"You are a nutrition expert. {prompt}"}
+                                ]
+                            }
+                        ],
                         "generationConfig": {
                             "temperature": 0.3,
-                            "maxOutputTokens": 2000
-                        }
+                            "maxOutputTokens": 2000,
+                        },
                     },
-                    timeout=30.0
+                    timeout=30.0,
                 )
 
                 print(f"Gemini response status: {response.status_code}")
@@ -186,7 +186,9 @@ class AIService:
             providers.append(("Gemini", self._make_gemini_request))
 
         if not providers:
-            raise Exception("Нет доступных AI провайдеров. Настройте GITHUB_TOKEN или GEMINI_API_KEY")
+            raise Exception(
+                "Нет доступных AI провайдеров. Настройте GITHUB_TOKEN или GEMINI_API_KEY"
+            )
 
         last_error = None
 
@@ -203,7 +205,9 @@ class AIService:
         # Все провайдеры упали
         raise Exception(f"Все AI провайдеры недоступны. Последняя ошибка: {last_error}")
 
-    def _analyze_workout_history(self, workout_history: List[Dict[str, Any]], target_muscle: str) -> str:
+    def _analyze_workout_history(
+        self, workout_history: List[Dict[str, Any]], target_muscle: str
+    ) -> str:
         """Проанализировать историю тренировок для промпта"""
         if not workout_history:
             return "История тренировок отсутствует. Это первая тренировка пользователя."
@@ -213,10 +217,10 @@ class AIService:
         common_exercises = []
 
         for workout in recent_workouts:
-            exercises = workout.get('exercises', [])
+            exercises = workout.get("exercises", [])
             for exercise in exercises:
-                muscle = exercise.get('muscle_group', '')
-                exercise_name = exercise.get('name', '')
+                muscle = exercise.get("muscle_group", "")
+                exercise_name = exercise.get("name", "")
                 if muscle:
                     muscle_frequency[muscle] = muscle_frequency.get(muscle, 0) + 1
                 if exercise_name:
@@ -228,7 +232,9 @@ class AIService:
         if target_muscle in muscle_frequency:
             analysis += f"Группа мышц '{target_muscle}' тренировалась {muscle_frequency[target_muscle]} раз в последних тренировках. "
             if muscle_frequency[target_muscle] >= 2:
-                analysis += "Рекомендуется предложить новые упражнения для разнообразия.\n"
+                analysis += (
+                    "Рекомендуется предложить новые упражнения для разнообразия.\n"
+                )
             else:
                 analysis += "Можно продолжить развитие с прогрессией нагрузки.\n"
         else:
@@ -236,20 +242,23 @@ class AIService:
 
         if common_exercises:
             from collections import Counter
+
             exercise_counts = Counter(common_exercises)
-            frequent_exercises = [ex for ex, count in exercise_counts.items() if count >= 2]
+            frequent_exercises = [
+                ex for ex, count in exercise_counts.items() if count >= 2
+            ]
             if frequent_exercises:
                 analysis += f"Часто повторяющиеся упражнения: {', '.join(frequent_exercises[:3])}. Избегайте их повторения.\n"
 
         return analysis
 
     async def generate_dashboard_greeting(
-            self,
-            user_data: Dict[str, Any],
-            quick_stats: Dict[str, Any],
-            weekly_progress: Dict[str, Any],
-            energy_data: List[Dict[str, Any]],
-            last_workout: Dict[str, Any] = None
+        self,
+        user_data: Dict[str, Any],
+        quick_stats: Dict[str, Any],
+        weekly_progress: Dict[str, Any],
+        energy_data: List[Dict[str, Any]],
+        last_workout: Dict[str, Any] = None,
     ) -> str:
         """Сгенерировать персонализированное приветствие и анализ дашборда"""
 
@@ -260,7 +269,9 @@ class AIService:
 
         energy_analysis = ""
         if energy_data:
-            recent_energy = [item.get('energy', 0) for item in energy_data[-3:]]  # Последние 3 дня
+            recent_energy = [
+                item.get("energy", 0) for item in energy_data[-3:]
+            ]  # Последние 3 дня
             avg_energy = sum(recent_energy) / len(recent_energy) if recent_energy else 0
             energy_analysis = f"Средний уровень энергии: {avg_energy:.1f}/10"
             if avg_energy >= 8:
@@ -270,8 +281,8 @@ class AIService:
 
         last_workout_analysis = ""
         if last_workout:
-            workout_date = last_workout.get('date', '')
-            workout_type = last_workout.get('type', 'тренировка')
+            workout_date = last_workout.get("date", "")
+            workout_type = last_workout.get("type", "тренировка")
             last_workout_analysis = f"Последняя {workout_type} была {workout_date}"
 
         prompt = f"""
@@ -326,18 +337,20 @@ class AIService:
         except Exception as e:
             print(f"🎯 AI Greeting Error: {e}")
             # Fallback приветствие
-            user_name = user_data.get('name', 'Спортсмен')
+            user_name = user_data.get("name", "Спортсмен")
             return f"Привет, {user_name}! Рад видеть тебя снова! 💪"
 
-    async def generate_last_training_message(self, last_workout: Dict[str, Any] = None) -> str:
+    async def generate_last_training_message(
+        self, last_workout: Dict[str, Any] = None
+    ) -> str:
         """Сгенерировать короткое сообщение о последней тренировке"""
         if not last_workout:
             return "Начни свою первую тренировку! 💪"
-        
-        workout_date = last_workout.get('date', '')
-        workout_type = last_workout.get('type', 'тренировка')
-        duration = last_workout.get('duration', 60)
-        
+
+        workout_date = last_workout.get("date", "")
+        workout_type = last_workout.get("type", "тренировка")
+        duration = last_workout.get("duration", 60)
+
         prompt = f"""
         Создай ОДНО короткое предложение (максимум 10 слов) о последней тренировке пользователя.
         
@@ -360,7 +373,7 @@ class AIService:
         
         СФОРМУЛИРУЙ СООБЩЕНИЕ:
         """
-        
+
         try:
             response = await self._make_ai_request(prompt)
             response = response.strip()
@@ -369,23 +382,21 @@ class AIService:
             # Ограничиваем длину
             words = response.split()
             if len(words) > 12:
-                response = ' '.join(words[:12])
+                response = " ".join(words[:12])
             return response
         except Exception as e:
             print(f"AI Last Training Message Error: {e}")
             return f"Your last training was {workout_type} on {workout_date} 💪"
 
     async def generate_weekly_progress_message(
-        self, 
-        weekly_progress: Dict[str, Any],
-        quick_stats: Dict[str, Any]
+        self, weekly_progress: Dict[str, Any], quick_stats: Dict[str, Any]
     ) -> str:
         """Сгенерировать короткое сообщение под прогресс-баром"""
-        completed = weekly_progress.get('completed_workouts', 0)
-        planned = weekly_progress.get('planned_workouts', 0)
-        completion_rate = weekly_progress.get('completion_rate', 0)
-        weight_lifted = quick_stats.get('total_weight_lifted', 0)
-        
+        completed = weekly_progress.get("completed_workouts", 0)
+        planned = weekly_progress.get("planned_workouts", 0)
+        completion_rate = weekly_progress.get("completion_rate", 0)
+        weight_lifted = quick_stats.get("total_weight_lifted", 0)
+
         prompt = f"""
         Создай ОДНО короткое мотивирующее предложение (максимум 8 слов) о прогрессе тренировок за неделю.
         
@@ -409,7 +420,7 @@ class AIService:
         
         СФОРМУЛИРУЙ СООБЩЕНИЕ:
         """
-        
+
         try:
             response = await self._make_ai_request(prompt)
 
@@ -419,7 +430,7 @@ class AIService:
             # Ограничиваем длину
             words = text.split()
             if len(words) > 10:
-                text = ' '.join(words[:10])
+                text = " ".join(words[:10])
             return text
         except Exception as e:
             print(f"AI Weekly Progress Message Error: {e}")
@@ -430,7 +441,9 @@ class AIService:
             else:
                 return "Добавь еще тренировку на этой неделе! 🎯"
 
-    async def generate_profile_tips(self, user_data: Dict[str, Any], progress_data: Dict[str, Any]) -> List[str]:
+    async def generate_profile_tips(
+        self, user_data: Dict[str, Any], progress_data: Dict[str, Any]
+    ) -> List[str]:
         """Сгенерировать персональные советы для профиля через AI"""
         print(f"Generating profile tips for user: {user_data}")
 
@@ -464,15 +477,15 @@ class AIService:
         print(f"=== END AI RESPONSE ===")
 
         tips = []
-        lines = response.split('\n')
+        lines = response.split("\n")
 
         for line in lines:
             line = line.strip()
             if line and line[0].isdigit():
-                if '. ' in line:
-                    tip = line.split('. ', 1)[1].strip()
-                elif ') ' in line:
-                    tip = line.split(') ', 1)[1].strip()
+                if ". " in line:
+                    tip = line.split(". ", 1)[1].strip()
+                elif ") " in line:
+                    tip = line.split(") ", 1)[1].strip()
                 else:
                     tip = line[1:].strip()
 
@@ -486,7 +499,9 @@ class AIService:
 
         return tips[:3]
 
-    async def analyze_dish_nutrition(self, dish_name: str, grams: float) -> Dict[str, float]:
+    async def analyze_dish_nutrition(
+        self, dish_name: str, grams: float
+    ) -> Dict[str, float]:
         """
         Проанализировать блюдо и рассчитать БЖУ через AI с fallback цепочкой.
         Порядок: GitHub Models → Gemini
@@ -542,10 +557,7 @@ class AIService:
         raise Exception(error_msg)
 
     async def generate_progress_analysis(
-            self,
-            chart_data: List[Dict[str, Any]],
-            metric: str,
-            user_data: Dict[str, Any]
+        self, chart_data: List[Dict[str, Any]], metric: str, user_data: Dict[str, Any]
     ) -> str:
         """Генерация AI анализа прогресса на основе данных графика"""
         print(f"Generating progress analysis for metric: {metric}")
@@ -553,7 +565,7 @@ class AIService:
         print(f"Chart data points: {len(chart_data)}")
 
         if not chart_data:
-            user_name = user_data.get('name', 'Спортсмен')
+            user_name = user_data.get("name", "Спортсмен")
             return f"{user_name}, начните отслеживать прогресс, чтобы получать персональные рекомендации! 📊"
 
         trend_analysis = ""
@@ -563,17 +575,25 @@ class AIService:
             trend = last_value - first_value
 
             if metric == "weight":
-                trend_percentage = (trend / first_value * 100) if first_value != 0 else 0
+                trend_percentage = (
+                    (trend / first_value * 100) if first_value != 0 else 0
+                )
                 trend_analysis = f"Изменение веса: {trend:+.1f} кг ({trend_percentage:+.1f}%) за период"
             elif metric == "body_fat":
-                trend_percentage = (trend / first_value * 100) if first_value != 0 else 0
-                trend_analysis = f"Изменение процента жира: {trend:+.1f}% ({trend_percentage:+.1f}%)"
+                trend_percentage = (
+                    (trend / first_value * 100) if first_value != 0 else 0
+                )
+                trend_analysis = (
+                    f"Изменение процента жира: {trend:+.1f}% ({trend_percentage:+.1f}%)"
+                )
             elif metric == "workouts":
                 total_workouts = sum(item["value"] for item in chart_data)
                 avg_workouts = total_workouts / len(chart_data)
                 trend_analysis = f"Всего тренировок: {total_workouts}, средняя активность: {avg_workouts:.1f} в день"
             elif metric == "recovery":
-                avg_recovery = sum(item["value"] for item in chart_data) / len(chart_data)
+                avg_recovery = sum(item["value"] for item in chart_data) / len(
+                    chart_data
+                )
                 min_recovery = min(item["value"] for item in chart_data)
                 max_recovery = max(item["value"] for item in chart_data)
                 trend_analysis = f"Среднее восстановление: {avg_recovery:.1f}%, диапазон: {min_recovery}-{max_recovery}%"
@@ -620,17 +640,19 @@ class AIService:
         return text
 
     async def generate_ai_workout(
-            self,
-            user_data: Dict[str, Any],
-            muscle_group: str,
-            workout_history: List[Dict[str, Any]] = None
+        self,
+        user_data: Dict[str, Any],
+        muscle_group: str,
+        workout_history: List[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Сгенерировать персонализированную AI тренировку с учетом истории"""
 
         print(f"🔧 AI WORKOUT GENERATION CALLED")
         print(f"🔧 User data: {user_data}")
         print(f"🔧 Muscle group: {muscle_group}")
-        print(f"🔧 Workout history: {len(workout_history) if workout_history else 0} records")
+        print(
+            f"🔧 Workout history: {len(workout_history) if workout_history else 0} records"
+        )
 
         history_analysis = self._analyze_workout_history(workout_history, muscle_group)
 
@@ -722,9 +744,7 @@ class AIService:
             raise Exception(f"Не удалось сгенерировать тренировку: {str(e)}")
 
     async def analyze_workout_performance(
-            self,
-            workout_data: Dict[str, Any],
-            user_feedback: Dict[str, Any]
+        self, workout_data: Dict[str, Any], user_feedback: Dict[str, Any]
     ) -> str:
         """Проанализировать эффективность тренировки"""
         prompt = f"""

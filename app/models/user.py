@@ -1,5 +1,15 @@
 import enum
-from sqlalchemy import Column, Integer, String, Float, Enum, Boolean, ForeignKey, JSON, DateTime
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    Enum,
+    Boolean,
+    ForeignKey,
+    JSON,
+    DateTime,
+)
 from sqlalchemy.orm import relationship
 from app.core.base import Base
 from datetime import datetime
@@ -40,7 +50,6 @@ class User(Base):
     ai_workout_uses = Column(Integer, default=0, nullable=False)
     ai_workout_reset_date = Column(DateTime, nullable=True)
 
-
     age = Column(Integer, nullable=True)
     gender = Column(Enum(GenderEnum), nullable=True)
     lifestyle = Column(Enum(LifestyleEnum), nullable=True)
@@ -66,5 +75,9 @@ class User(Base):
     workouts = relationship("Workout", back_populates="user", cascade="all, delete")
     meals = relationship("Meal", back_populates="user", cascade="all, delete")
     progress = relationship("Progress", back_populates="user", cascade="all, delete")
-    ai_recommendations = relationship("AIRecommendation", back_populates="user", cascade="all, delete")
-    attachments = relationship("Attachment", back_populates="user", cascade="all, delete")
+    ai_recommendations = relationship(
+        "AIRecommendation", back_populates="user", cascade="all, delete"
+    )
+    attachments = relationship(
+        "Attachment", back_populates="user", cascade="all, delete"
+    )

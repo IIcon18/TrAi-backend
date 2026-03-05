@@ -4,20 +4,18 @@ from app.services.ai_service import ai_service
 
 
 class NutritionCalculator:
-    ACTIVITY_MULTIPLIERS = {
-        "low": 1.2,
-        "medium": 1.55,
-        "high": 1.9
-    }
+    ACTIVITY_MULTIPLIERS = {"low": 1.2, "medium": 1.55, "high": 1.9}
 
     MACRO_RATIOS = {
         "weight_loss": {"protein": 0.35, "carbs": 0.40, "fat": 0.25},
         "maintenance": {"protein": 0.30, "carbs": 0.40, "fat": 0.30},
-        "muscle_gain": {"protein": 0.35, "carbs": 0.45, "fat": 0.20}
+        "muscle_gain": {"protein": 0.35, "carbs": 0.45, "fat": 0.20},
     }
 
     @classmethod
-    def calculate_bmr(cls, weight: float, height: float, age: int, gender: str) -> float:
+    def calculate_bmr(
+        cls, weight: float, height: float, age: int, gender: str
+    ) -> float:
         weight = weight or 70
         height = height or 170
         age = age or 30
@@ -33,18 +31,16 @@ class NutritionCalculator:
         return bmr * multiplier
 
     @classmethod
-    def calculate_macros(cls, calories: int, goal: str = "maintenance") -> Dict[str, int]:
+    def calculate_macros(
+        cls, calories: int, goal: str = "maintenance"
+    ) -> Dict[str, int]:
         ratios = cls.MACRO_RATIOS.get(goal, cls.MACRO_RATIOS["maintenance"])
 
         protein_g = int((calories * ratios["protein"]) / 4)
         carbs_g = int((calories * ratios["carbs"]) / 4)
         fat_g = int((calories * ratios["fat"]) / 9)
 
-        return {
-            "protein": protein_g,
-            "carbs": carbs_g,
-            "fat": fat_g
-        }
+        return {"protein": protein_g, "carbs": carbs_g, "fat": fat_g}
 
     @classmethod
     def get_user_calorie_needs(cls, user: User) -> int:
@@ -56,7 +52,7 @@ class NutritionCalculator:
                 weight=user.weight,
                 height=user.height,
                 age=user.age,
-                gender=user.gender.value if user.gender else "male"
+                gender=user.gender.value if user.gender else "male",
             )
             tdee = cls.calculate_tdee(bmr, user.lifestyle.value)
             return int(tdee)

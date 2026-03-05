@@ -30,7 +30,9 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token, refresh_token = await auth_service.issue_tokens(repo, authenticated_user)
+    access_token, refresh_token = await auth_service.issue_tokens(
+        repo, authenticated_user
+    )
 
     return AuthResponse(
         access_token=access_token,

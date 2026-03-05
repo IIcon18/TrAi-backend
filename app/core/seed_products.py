@@ -1,6 +1,7 @@
 """
 Скрипт для загрузки начальных продуктов в базу данных
 """
+
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.models.product import Product
@@ -16,7 +17,9 @@ async def seed_products():
         existing_products = result.scalars().all()
 
         if len(existing_products) > 0:
-            print(f"База уже содержит {len(existing_products)} продуктов. Пропускаем загрузку.")
+            print(
+                f"База уже содержит {len(existing_products)} продуктов. Пропускаем загрузку."
+            )
             return
 
         print(f"Загружаем {len(INITIAL_PRODUCTS)} начальных продуктов...")
@@ -32,7 +35,7 @@ async def seed_products():
                 carbs_per_100g=product_data["carbs_per_100g"],
                 category=product_data.get("category"),
                 verified=product_data.get("verified", False),
-                source="manual"
+                source="manual",
             )
             db.add(product)
 

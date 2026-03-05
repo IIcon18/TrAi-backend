@@ -5,6 +5,7 @@ from datetime import datetime
 from app.models.user import GenderEnum, LifestyleEnum, LevelEnum
 from app.schemas.goal import GoalResponse
 
+
 class ProfileBase(BaseModel):
     email: EmailStr
     age: Optional[int] = None
@@ -18,6 +19,7 @@ class ProfileBase(BaseModel):
 
 class ProfileSetupRequest(BaseModel):
     """Дозаполнение профиля после регистрации"""
+
     age: int
     gender: GenderEnum
     lifestyle: LifestyleEnum
@@ -45,13 +47,16 @@ class ProfileUpdate(BaseModel):
     preferred_training_days: Optional[List[str]] = None
     target_weight: Optional[float] = None
 
+
 class AITip(BaseModel):
     tip: str
+
 
 class AITipsRefreshResponse(BaseModel):
     success: bool
     ai_tips: List[AITip]
     message: str = "AI советы обновлены"
+
 
 class ProfileResponse(BaseModel):
     id: int
@@ -79,13 +84,16 @@ class ProfileResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class TelegramConnectRequest(BaseModel):
     telegram_chat_id: str
+
 
 class TelegramConnectResponse(BaseModel):
     success: bool
     message: str
     telegram_chat_id: Optional[str] = None
+
 
 class AIFact(BaseModel):
     id: int
@@ -94,6 +102,7 @@ class AIFact(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class AvatarUploadResponse(BaseModel):
     success: bool

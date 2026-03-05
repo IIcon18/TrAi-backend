@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.core.base import Base
 
+
 class Meal(Base):
     __tablename__ = "meals"
 
@@ -12,6 +13,7 @@ class Meal(Base):
 
     user = relationship("User", back_populates="meals")
     dishes = relationship("Dish", back_populates="meal", cascade="all, delete-orphan")
+
 
 class Dish(Base):
     __tablename__ = "dishes"

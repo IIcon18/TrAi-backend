@@ -9,6 +9,7 @@
 - Circuit breaker: после 5 ошибок подряд — 60с паузы без запросов
 - Graceful fallback при недоступности Redis (работает без кеша)
 """
+
 import asyncio
 import hashlib
 import json
@@ -23,11 +24,11 @@ from app.core.config import settings
 
 class OpenFoodFactsService:
     # --- Конфигурация ---
-    TIMEOUT = 8.0           # секунд — максимум ожидания от пользователя
-    CACHE_TTL = 3600        # секунд — данные о БЖУ редко меняются
-    MAX_RETRIES = 2         # попыток при таймауте (с backoff)
-    FAILURE_THRESHOLD = 5   # ошибок подряд до открытия circuit breaker
-    RECOVERY_TIMEOUT = 60   # секунд паузы при открытом circuit breaker
+    TIMEOUT = 8.0  # секунд — максимум ожидания от пользователя
+    CACHE_TTL = 3600  # секунд — данные о БЖУ редко меняются
+    MAX_RETRIES = 2  # попыток при таймауте (с backoff)
+    FAILURE_THRESHOLD = 5  # ошибок подряд до открытия circuit breaker
+    RECOVERY_TIMEOUT = 60  # секунд паузы при открытом circuit breaker
 
     @property
     def _search_url(self) -> str:
@@ -118,47 +119,51 @@ class OpenFoodFactsService:
 
     def _normalize_nutriments(self, product: Dict) -> Optional[Dict[str, float]]:
         """Извлечь БЖУ из продукта. Приоритет: данные на 100г."""
-        nutriments = product.get('nutriments', {})
+        nutriments = product.get("nutriments", {})
 
-        if 'energy-kcal_100g' not in nutriments and 'energy_100g' not in nutriments:
+        if "energy-kcal_100g" not in nutriments and "energy_100g" not in nutriments:
             return None
 
-        calories = nutriments.get('energy-kcal_100g') or nutriments.get('energy_100g', 0)
-        protein = nutriments.get('proteins_100g', 0)
-        fat = nutriments.get('fat_100g', 0)
-        carbs = nutriments.get('carbohydrates_100g', 0)
+        calories = nutriments.get("energy-kcal_100g") or nutriments.get(
+            "energy_100g", 0
+        )
+        protein = nutriments.get("proteins_100g", 0)
+        fat = nutriments.get("fat_100g", 0)
+        carbs = nutriments.get("carbohydrates_100g", 0)
 
         # Конвертация кДж → ккал
         if calories > 1000:
             calories = calories * 0.239
 
         return {
-            'calories_per_100g': round(float(calories), 1),
-            'protein_per_100g': round(float(protein), 1),
-            'fat_per_100g': round(float(fat), 1),
-            'carbs_per_100g': round(float(carbs), 1),
+            "calories_per_100g": round(float(calories), 1),
+            "protein_per_100g": round(float(protein), 1),
+            "fat_per_100g": round(float(fat), 1),
+            "carbs_per_100g": round(float(carbs), 1),
         }
 
     def _parse_products(self, data: Dict) -> List[Dict]:
         results = []
-        for product in data.get('products', []):
-            name = product.get('product_name_ru') or product.get('product_name', '')
+        for product in data.get("products", []):
+            name = product.get("product_name_ru") or product.get("product_name", "")
             if not name:
                 continue
-            brand = product.get('brands', '')
+            brand = product.get("brands", "")
             if brand:
                 name = f"{name} ({brand})"
             nutrition = self._normalize_nutriments(product)
             if not nutrition:
                 continue
-            results.append({
-                'name': name,
-                'code': product.get('code', ''),
-                'image_url': product.get('image_url', ''),
-                'categories': product.get('categories', ''),
-                'source': 'openfoodfacts',
-                **nutrition,
-            })
+            results.append(
+                {
+                    "name": name,
+                    "code": product.get("code", ""),
+                    "image_url": product.get("image_url", ""),
+                    "categories": product.get("categories", ""),
+                    "source": "openfoodfacts",
+                    **nutrition,
+                }
+            )
         return results
 
     # ------------------------------------------------------------------
@@ -190,12 +195,12 @@ class OpenFoodFactsService:
         print(f"🔍 OpenFoodFacts: поиск '{query}' (lang={language})")
 
         params = {
-            'search_terms': query,
-            'search_simple': 1,
-            'action': 'process',
-            'json': 1,
-            'page_size': limit,
-            'fields': 'product_name,product_name_ru,brands,nutriments,code,image_url,categories',
+            "search_terms": query,
+            "search_simple": 1,
+            "action": "process",
+            "json": 1,
+            "page_size": limit,
+            "fields": "product_name,product_name_ru,brands,nutriments,code,image_url,categories",
         }
 
         # Retry с exponential backoff (только при таймауте)
@@ -217,9 +222,11 @@ class OpenFoodFactsService:
                 return results
 
             except httpx.TimeoutException:
-                wait = 2 ** attempt  # 1с, 2с
+                wait = 2**attempt  # 1с, 2с
                 if attempt < self.MAX_RETRIES - 1:
-                    print(f"⏱️ OpenFoodFacts timeout (попытка {attempt + 1}), повтор через {wait}с")
+                    print(
+                        f"⏱️ OpenFoodFacts timeout (попытка {attempt + 1}), повтор через {wait}с"
+                    )
                     await asyncio.sleep(wait)
                 else:
                     print("⏱️ OpenFoodFacts timeout — все попытки исчерпаны")
@@ -248,11 +255,11 @@ class OpenFoodFactsService:
             url = f"{settings.OPENFOODFACTS_BASE_URL}/api/v0/product/{barcode}.json"
             response = await client.get(url)
 
-            if response.status_code != 200 or response.json().get('status') != 1:
+            if response.status_code != 200 or response.json().get("status") != 1:
                 return None
 
-            product = response.json().get('product', {})
-            name = product.get('product_name_ru') or product.get('product_name', '')
+            product = response.json().get("product", {})
+            name = product.get("product_name_ru") or product.get("product_name", "")
             if not name:
                 return None
 
@@ -261,10 +268,10 @@ class OpenFoodFactsService:
                 return None
 
             result = {
-                'name': name,
-                'code': barcode,
-                'image_url': product.get('image_url', ''),
-                'source': 'openfoodfacts',
+                "name": name,
+                "code": barcode,
+                "image_url": product.get("image_url", ""),
+                "source": "openfoodfacts",
                 **nutrition,
             }
             self._record_success()

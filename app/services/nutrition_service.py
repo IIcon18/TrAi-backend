@@ -1,6 +1,7 @@
 """
 Сервис для работы с питанием: поиск продуктов, расчет БЖУ, кеширование AI результатов
 """
+
 from typing import Dict, Optional
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,18 +17,18 @@ class NutritionService:
         # Lowercase и удаление лишних пробелов
         normalized = name.lower().strip()
         # Удаляем спецсимволы
-        normalized = re.sub(r'[^\w\s]', '', normalized)
+        normalized = re.sub(r"[^\w\s]", "", normalized)
         # Множественные пробелы в один
-        normalized = re.sub(r'\s+', ' ', normalized)
+        normalized = re.sub(r"\s+", " ", normalized)
         return normalized
 
     @staticmethod
     def _calculate_for_grams(
-            calories_per_100g: float,
-            protein_per_100g: float,
-            fat_per_100g: float,
-            carbs_per_100g: float,
-            grams: float
+        calories_per_100g: float,
+        protein_per_100g: float,
+        fat_per_100g: float,
+        carbs_per_100g: float,
+        grams: float,
     ) -> Dict[str, float]:
         """Пересчет БЖУ на указанное количество грамм"""
         multiplier = grams / 100.0
@@ -35,13 +36,11 @@ class NutritionService:
             "calories": round(calories_per_100g * multiplier, 1),
             "protein": round(protein_per_100g * multiplier, 1),
             "fat": round(fat_per_100g * multiplier, 1),
-            "carbs": round(carbs_per_100g * multiplier, 1)
+            "carbs": round(carbs_per_100g * multiplier, 1),
         }
 
     async def find_in_database(
-            self,
-            dish_name: str,
-            db: AsyncSession
+        self, dish_name: str, db: AsyncSession
     ) -> Optional[Product]:
         """Поиск продукта в базе (точное совпадение или вариант)"""
         normalized = self._normalize_name(dish_name)
@@ -56,9 +55,7 @@ class NutritionService:
 
         # Поиск в name_variants (PostgreSQL ARRAY)
         result = await db.execute(
-            select(Product).where(
-                Product.name_variants.any(normalized)
-            )
+            select(Product).where(Product.name_variants.any(normalized))
         )
         product = result.scalar_one_or_none()
         if product:
@@ -68,12 +65,14 @@ class NutritionService:
         words = normalized.split()
         if len(words) > 1:
             # Ищем по первому значимому слову (не предлогам)
-            main_word = next((w for w in words if len(w) > 3), words[0] if words else "")
+            main_word = next(
+                (w for w in words if len(w) > 3), words[0] if words else ""
+            )
             if main_word:
                 result = await db.execute(
-                    select(Product).where(
-                        Product.name_lower.like(f"%{main_word}%")
-                    ).limit(1)
+                    select(Product)
+                    .where(Product.name_lower.like(f"%{main_word}%"))
+                    .limit(1)
                 )
                 product = result.scalar_one_or_none()
                 if product:
@@ -82,9 +81,7 @@ class NutritionService:
         return None
 
     async def find_in_cache(
-            self,
-            dish_name: str,
-            db: AsyncSession
+        self, dish_name: str, db: AsyncSession
     ) -> Optional[AINutritionCache]:
         """Поиск в кеше AI результатов"""
         normalized = self._normalize_name(dish_name)
@@ -105,12 +102,12 @@ class NutritionService:
         return cached
 
     async def save_to_cache(
-            self,
-            dish_name: str,
-            grams: float,
-            nutrition: Dict[str, float],
-            source: str,
-            db: AsyncSession
+        self,
+        dish_name: str,
+        grams: float,
+        nutrition: Dict[str, float],
+        source: str,
+        db: AsyncSession,
     ) -> AINutritionCache:
         """Сохранить результат AI в кеш"""
         normalized = self._normalize_name(dish_name)
@@ -161,7 +158,7 @@ class NutritionService:
                 fat_per_100g=fat_per_100g,
                 carbs_per_100g=carbs_per_100g,
                 source=source,
-                usage_count=1
+                usage_count=1,
             )
             db.add(cached)
 
@@ -170,11 +167,7 @@ class NutritionService:
         return cached
 
     async def get_nutrition(
-            self,
-            dish_name: str,
-            grams: float,
-            db: AsyncSession,
-            ai_service=None
+        self, dish_name: str, grams: float, db: AsyncSession, ai_service=None
     ) -> Dict[str, float]:
         """
         Получить БЖУ для блюда.
@@ -193,19 +186,21 @@ class NutritionService:
                 product.protein_per_100g,
                 product.fat_per_100g,
                 product.carbs_per_100g,
-                grams
+                grams,
             )
 
         # 2. Ищем в кеше AI
         cached = await self.find_in_cache(dish_name, db)
         if cached:
-            print(f"✅ Найдено в кеше AI: {cached.dish_name} (использовано {cached.usage_count} раз)")
+            print(
+                f"✅ Найдено в кеше AI: {cached.dish_name} (использовано {cached.usage_count} раз)"
+            )
             return self._calculate_for_grams(
                 cached.calories_per_100g,
                 cached.protein_per_100g,
                 cached.fat_per_100g,
                 cached.carbs_per_100g,
-                grams
+                grams,
             )
 
         # 3. Вызываем AI (если сервис передан)
@@ -215,7 +210,7 @@ class NutritionService:
                 nutrition = await ai_service.analyze_dish_nutrition(dish_name, grams)
 
                 # Сохраняем результат в кеш
-                source = getattr(ai_service, 'last_used_provider', 'unknown')
+                source = getattr(ai_service, "last_used_provider", "unknown")
                 await self.save_to_cache(dish_name, grams, nutrition, source, db)
 
                 return nutrition
@@ -226,7 +221,9 @@ class NutritionService:
         print(f"⚠️ Используем примерные значения для: {dish_name}")
         return self._get_approximate_nutrition(dish_name, grams)
 
-    def _get_approximate_nutrition(self, dish_name: str, grams: float) -> Dict[str, float]:
+    def _get_approximate_nutrition(
+        self, dish_name: str, grams: float
+    ) -> Dict[str, float]:
         """Примерные значения БЖУ на основе категории блюда"""
         normalized = self._normalize_name(dish_name)
 
@@ -264,7 +261,7 @@ class NutritionService:
             base_nutrition["protein"],
             base_nutrition["fat"],
             base_nutrition["carbs"],
-            grams
+            grams,
         )
 
 

@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.core.base import Base
 from datetime import datetime
 
+
 class PostWorkoutTest(Base):
     __tablename__ = "post_workout_tests"
 

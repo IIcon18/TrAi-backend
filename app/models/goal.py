@@ -3,11 +3,13 @@ from sqlalchemy import Column, Integer, String, Float, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from app.core.base import Base
 
+
 class GoalTypeEnum(str, enum.Enum):
     weight_loss = "weight_loss"
     muscle_gain = "muscle_gain"
     maintenance = "maintenance"
     endurance = "endurance"
+
 
 class Goal(Base):
     __tablename__ = "goals"
@@ -17,6 +19,7 @@ class Goal(Base):
     type = Column(Enum(GoalTypeEnum), nullable=False)
 
     user_goals = relationship("UserGoal", back_populates="goal", cascade="all, delete")
+
 
 class UserGoal(Base):
     __tablename__ = "user_goals"

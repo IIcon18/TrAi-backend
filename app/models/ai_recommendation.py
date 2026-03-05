@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.core.base import Base
 from datetime import datetime
 
+
 class AIRecommendation(Base):
     __tablename__ = "ai_recommendations"
 

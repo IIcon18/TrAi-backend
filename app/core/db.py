@@ -4,20 +4,16 @@ from app.core.config import settings
 
 DATABASE_URL = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=True,
-    future=True,
-    pool_pre_ping=True
-)
+engine = create_async_engine(DATABASE_URL, echo=True, future=True, pool_pre_ping=True)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     autoflush=False,
     autocommit=False,
-    expire_on_commit=False
+    expire_on_commit=False,
 )
+
 
 async def get_db():
     async with AsyncSessionLocal() as session:

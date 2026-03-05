@@ -15,6 +15,7 @@ class DishBase(BaseModel):
 class DishCreate(DishBase):
     meal_type: str
 
+
 class DishResponse(DishBase):
     id: int
     meal_id: int

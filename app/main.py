@@ -31,16 +31,21 @@ async def startup_event():
     await init_database()
 
     from app.services import s3_service
+
     await s3_service.ensure_bucket_exists()
 
     from app.models.user import User
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(User).where(User.email == "test@example.com"))
+        result = await session.execute(
+            select(User).where(User.email == "test@example.com")
+        )
         if not result.scalar_one_or_none():
             await create_test_data(session)
 
-        result = await session.execute(select(User).where(User.email == "admin@trai.com"))
+        result = await session.execute(
+            select(User).where(User.email == "admin@trai.com")
+        )
         if not result.scalar_one_or_none():
             await create_admin_user(session)
 
@@ -48,6 +53,11 @@ async def startup_event():
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
     return JSONResponse(status_code=404, content={"detail": "Не найдено"})
+
+
+@app.get("/health", include_in_schema=False)
+async def health():
+    return {"status": "ok"}
 
 
 @app.get("/robots.txt", include_in_schema=False)
@@ -104,6 +114,6 @@ async def root():
             "Goals": f"{base_url}/goals",
             "Nutrition": f"{base_url}/nutrition",
             "Docs": f"{base_url}/docs",
-            "ReDoc": f"{base_url}/redoc"
-        }
+            "ReDoc": f"{base_url}/redoc",
+        },
     }
