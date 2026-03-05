@@ -17,6 +17,9 @@ venv/
 
 # Environment files
 .env
+.env.local
+.env.production
+docker-compose.override.yml
 
 # Logs
 *.log
