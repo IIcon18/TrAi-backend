@@ -2,15 +2,18 @@ from pydantic import BaseModel, EmailStr
 from enum import Enum
 from typing import Optional, List
 
+
 class LifestyleEnum(str, Enum):
     low = "low"
     medium = "medium"
     high = "high"
 
+
 class LevelEnum(str, Enum):
     beginner = "beginner"
     amateur = "amateur"
     professional = "professional"
+
 
 class GenderEnum(str, Enum):
     male = "male"
@@ -19,6 +22,7 @@ class GenderEnum(str, Enum):
 
 class UserCreate(BaseModel):
     """Создание пользователя (упрощённое)"""
+
     nickname: str
     email: EmailStr
     password: str
@@ -26,6 +30,7 @@ class UserCreate(BaseModel):
 
 class UserRead(BaseModel):
     """Чтение данных пользователя"""
+
     id: int
     nickname: str
     email: EmailStr
@@ -52,6 +57,7 @@ class UserRead(BaseModel):
 
 class UserUpdate(BaseModel):
     """Обновление профиля пользователя"""
+
     nickname: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[GenderEnum] = None
@@ -72,6 +78,7 @@ class UserUpdate(BaseModel):
 
 class ProfileSetup(BaseModel):
     """Дозаполнение профиля после регистрации"""
+
     age: int
     gender: GenderEnum
     lifestyle: LifestyleEnum

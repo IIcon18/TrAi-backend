@@ -82,7 +82,7 @@ async def list_users(
 async def get_user(
     user_id: int,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -96,7 +96,7 @@ async def get_user(
         email=user.email,
         role=user.role.value if user.role else "user",
         profile_completed=user.profile_completed,
-        created_at=user.created_at
+        created_at=user.created_at,
     )
 
 
@@ -105,12 +105,11 @@ async def update_user_role(
     user_id: int,
     role_data: RoleUpdateRequest,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     if user_id == current_user.id:
         raise HTTPException(
-            status_code=400,
-            detail="Нельзя изменить свою собственную роль"
+            status_code=400, detail="Нельзя изменить свою собственную роль"
         )
 
     # Валидация роли
@@ -119,7 +118,7 @@ async def update_user_role(
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail=f"Недопустимая роль: {role_data.role}. Допустимые: user, pro, admin"
+            detail=f"Недопустимая роль: {role_data.role}. Допустимые: user, pro, admin",
         )
 
     result = await db.execute(select(User).where(User.id == user_id))
@@ -134,7 +133,7 @@ async def update_user_role(
     return RoleUpdateResponse(
         message=f"Роль пользователя {user.email} изменена на {new_role.value}",
         user_id=user.id,
-        new_role=new_role.value
+        new_role=new_role.value,
     )
 
 
@@ -142,13 +141,10 @@ async def update_user_role(
 async def delete_user(
     user_id: int,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     if user_id == current_user.id:
-        raise HTTPException(
-            status_code=400,
-            detail="Нельзя удалить самого себя"
-        )
+        raise HTTPException(status_code=400, detail="Нельзя удалить самого себя")
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()

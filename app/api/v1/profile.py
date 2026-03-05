@@ -9,9 +9,16 @@ from app.core.db import get_db
 from app.core.dependencies import get_current_user
 from app.core.rbac import require_pro
 from app.schemas.profile import (
-    ProfileResponse, ProfileUpdate, TelegramConnectRequest,
-    TelegramConnectResponse, AIFact, AvatarUploadResponse,
-    AITip, AITipsRefreshResponse, ProfileSetupRequest, ProfileSetupResponse
+    ProfileResponse,
+    ProfileUpdate,
+    TelegramConnectRequest,
+    TelegramConnectResponse,
+    AIFact,
+    AvatarUploadResponse,
+    AITip,
+    AITipsRefreshResponse,
+    ProfileSetupRequest,
+    ProfileSetupResponse,
 )
 from app.models.user import User
 from app.models.goal import Goal
@@ -25,8 +32,7 @@ router = APIRouter(tags=["profile"])
 
 @router.get("/", response_model=ProfileResponse)
 async def get_profile(
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """Получить профиль текущего пользователя с AI советами"""
     try:
@@ -48,24 +54,30 @@ async def get_profile(
         if user.profile_completed:
 
             goal_type = "maintenance"
-            if current_goal and hasattr(current_goal, 'type'):
-                goal_type = current_goal.type.value if hasattr(current_goal.type, 'value') else str(current_goal.type)
+            if current_goal and hasattr(current_goal, "type"):
+                goal_type = (
+                    current_goal.type.value
+                    if hasattr(current_goal.type, "value")
+                    else str(current_goal.type)
+                )
 
             try:
                 ai_tips = await ai_service.generate_profile_tips(
                     user_data={
                         "level": user.level.value if user.level else "beginner",
-                        "goal": goal_type
+                        "goal": goal_type,
                     },
                     progress_data={
                         "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
-                        "recovery_trend": "стабильный"
-                    }
+                        "recovery_trend": "стабильный",
+                    },
                 )
 
                 ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
             except Exception as ai_err:
-                ai_tips_models = [AITip(tip="ИИ-подсказки временно недоступны. Попробуйте позже.")]
+                ai_tips_models = [
+                    AITip(tip="ИИ-подсказки временно недоступны. Попробуйте позже.")
+                ]
 
         return ProfileResponse(
             id=user.id,
@@ -88,18 +100,20 @@ async def get_profile(
             current_goal=current_goal,
             ai_calorie_plan=user.ai_calorie_plan,
             created_at=user.created_at,
-            ai_tips=ai_tips_models
+            ai_tips=ai_tips_models,
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке профиля: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при загрузке профиля: {str(e)}"
+        )
 
 
 @router.post("/setup", response_model=ProfileSetupResponse)
 async def setup_profile(
-        profile_data: ProfileSetupRequest,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    profile_data: ProfileSetupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Дозаполнение профиля после регистрации"""
     try:
@@ -127,23 +141,23 @@ async def setup_profile(
         await db.refresh(user)
 
         return ProfileSetupResponse(
-            success=True,
-            message="Профиль успешно заполнен",
-            profile_completed=True
+            success=True, message="Профиль успешно заполнен", profile_completed=True
         )
 
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Ошибка при заполнении профиля: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при заполнении профиля: {str(e)}"
+        )
 
 
 @router.put("/", response_model=ProfileResponse)
 async def update_profile(
-        profile_update: ProfileUpdate,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    profile_update: ProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Обновить данные профиля пользователя с AI советами"""
     try:
@@ -170,12 +184,12 @@ async def update_profile(
         ai_tips = await ai_service.generate_profile_tips(
             user_data={
                 "level": user.level.value if user.level else "beginner",
-                "goal": current_goal.type.value if current_goal else "maintenance"
+                "goal": current_goal.type.value if current_goal else "maintenance",
             },
             progress_data={
                 "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
-                "recovery_trend": "стабильный"
-            }
+                "recovery_trend": "стабильный",
+            },
         )
 
         ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
@@ -201,18 +215,19 @@ async def update_profile(
             current_goal=current_goal,
             ai_calorie_plan=user.ai_calorie_plan,
             created_at=user.created_at,
-            ai_tips=ai_tips_models
+            ai_tips=ai_tips_models,
         )
 
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Ошибка при обновлении профиля: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при обновлении профиля: {str(e)}"
+        )
 
 
 @router.post("/refresh-ai-tips", response_model=AITipsRefreshResponse)
 async def refresh_ai_tips(
-        current_user: User = Depends(require_pro),
-        db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(require_pro), db: AsyncSession = Depends(get_db)
 ):
     """Обновить AI советы (только pro/admin)"""
     try:
@@ -230,37 +245,41 @@ async def refresh_ai_tips(
 
         # Безопасное получение типа цели
         goal_type = "maintenance"
-        if current_goal and hasattr(current_goal, 'type'):
-            goal_type = current_goal.type.value if hasattr(current_goal.type, 'value') else str(current_goal.type)
+        if current_goal and hasattr(current_goal, "type"):
+            goal_type = (
+                current_goal.type.value
+                if hasattr(current_goal.type, "value")
+                else str(current_goal.type)
+            )
 
         ai_tips = await ai_service.generate_profile_tips(
             user_data={
                 "level": user.level.value if user.level else "beginner",
-                "goal": goal_type
+                "goal": goal_type,
             },
             progress_data={
                 "workout_frequency": f"{user.weekly_training_goal or 3} раза в неделю",
-                "recovery_trend": "стабильный"
-            }
+                "recovery_trend": "стабильный",
+            },
         )
 
         ai_tips_models = [AITip(tip=tip) for tip in ai_tips]
 
         return AITipsRefreshResponse(
-            success=True,
-            ai_tips=ai_tips_models,
-            message="AI советы успешно обновлены"
+            success=True, ai_tips=ai_tips_models, message="AI советы успешно обновлены"
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при обновлении AI советов: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при обновлении AI советов: {str(e)}"
+        )
 
 
 @router.post("/avatar", response_model=AvatarUploadResponse)
 async def upload_avatar(
-        file: UploadFile = File(...),
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Загрузить аватар пользователя"""
     try:
@@ -269,12 +288,14 @@ async def upload_avatar(
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        if not file.content_type.startswith('image/'):
-            raise HTTPException(status_code=400, detail="Можно загружать только изображения")
+        if not file.content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=400, detail="Можно загружать только изображения"
+            )
 
         os.makedirs("static/avatars", exist_ok=True)
 
-        file_extension = file.filename.split('.')[-1]
+        file_extension = file.filename.split(".")[-1]
         filename = f"user_{user.id}.{file_extension}"
         file_path = f"static/avatars/{filename}"
 
@@ -284,21 +305,20 @@ async def upload_avatar(
         user.avatar = f"/{file_path}"
         await db.commit()
 
-        return AvatarUploadResponse(
-            success=True,
-            avatar_url=user.avatar
-        )
+        return AvatarUploadResponse(success=True, avatar_url=user.avatar)
 
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке аватарки: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при загрузке аватарки: {str(e)}"
+        )
 
 
 @router.post("/connect-telegram", response_model=TelegramConnectResponse)
 async def connect_telegram(
-        telegram_data: TelegramConnectRequest,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    telegram_data: TelegramConnectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Подключить Telegram аккаунт для уведомлений"""
     try:
@@ -315,18 +335,19 @@ async def connect_telegram(
         return TelegramConnectResponse(
             success=True,
             message="Telegram успешно подключен",
-            telegram_chat_id=user.telegram_chat_id
+            telegram_chat_id=user.telegram_chat_id,
         )
 
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Ошибка при подключении Telegram: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при подключении Telegram: {str(e)}"
+        )
 
 
 @router.get("/ai-facts", response_model=List[AIFact])
 async def get_ai_facts(
-        current_user: User = Depends(require_pro),
-        db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(require_pro), db: AsyncSession = Depends(get_db)
 ):
     """Получить последние AI рекомендации (только pro/admin)"""
     try:
@@ -341,13 +362,14 @@ async def get_ai_facts(
         return [AIFact.from_orm(fact) for fact in facts]
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке фактов: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при загрузке фактов: {str(e)}"
+        )
 
 
 @router.get("/workout-stats")
 async def get_workout_stats(
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """
     Get workout statistics for the last 7 days for Profile page chart.
@@ -361,8 +383,7 @@ async def get_workout_stats(
         progress_result = await db.execute(
             select(Progress)
             .where(
-                Progress.user_id == current_user.id,
-                Progress.recorded_at >= week_ago
+                Progress.user_id == current_user.id, Progress.recorded_at >= week_ago
             )
             .order_by(Progress.recorded_at.asc())
         )
@@ -373,33 +394,38 @@ async def get_workout_stats(
         for record in progress_records:
             date_key = record.recorded_at.date()
             if date_key not in stats_by_date:
-                stats_by_date[date_key] = {
-                    'completed_workouts': 0,
-                    'total_weight': 0
-                }
-            stats_by_date[date_key]['completed_workouts'] += record.completed_workouts
-            stats_by_date[date_key]['total_weight'] += record.total_lifted_weight
+                stats_by_date[date_key] = {"completed_workouts": 0, "total_weight": 0}
+            stats_by_date[date_key]["completed_workouts"] += record.completed_workouts
+            stats_by_date[date_key]["total_weight"] += record.total_lifted_weight
 
         # Generate data for all 7 days (fill missing days with 0)
         chart_data = []
         for i in range(7):
             date = (week_ago + timedelta(days=i)).date()
-            day_name = date.strftime('%a')  # Mon, Tue, Wed, etc.
+            day_name = date.strftime("%a")  # Mon, Tue, Wed, etc.
 
-            stats = stats_by_date.get(date, {'completed_workouts': 0, 'total_weight': 0})
+            stats = stats_by_date.get(
+                date, {"completed_workouts": 0, "total_weight": 0}
+            )
 
-            chart_data.append({
-                'date': date.isoformat(),
-                'day': day_name,
-                'completed_workouts': stats['completed_workouts'],
-                'total_weight': round(stats['total_weight'], 1)
-            })
+            chart_data.append(
+                {
+                    "date": date.isoformat(),
+                    "day": day_name,
+                    "completed_workouts": stats["completed_workouts"],
+                    "total_weight": round(stats["total_weight"], 1),
+                }
+            )
 
         return {
-            'chart_data': chart_data,
-            'total_workouts_week': sum(day['completed_workouts'] for day in chart_data),
-            'total_weight_week': round(sum(day['total_weight'] for day in chart_data), 1)
+            "chart_data": chart_data,
+            "total_workouts_week": sum(day["completed_workouts"] for day in chart_data),
+            "total_weight_week": round(
+                sum(day["total_weight"] for day in chart_data), 1
+            ),
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке статистики: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при загрузке статистики: {str(e)}"
+        )

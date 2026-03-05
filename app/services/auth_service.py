@@ -37,10 +37,13 @@ class AuthService:
             print(f"Password verification error: {e}")
             return False
 
-    def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    def create_access_token(
+        self, data: dict, expires_delta: Optional[timedelta] = None
+    ) -> str:
         to_encode = data.copy()
         expire = datetime.utcnow() + (
-            expires_delta if expires_delta
+            expires_delta
+            if expires_delta
             else timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         to_encode.update({"exp": expire})
@@ -57,7 +60,9 @@ class AuthService:
 
     # ---------- основные операции ----------
 
-    async def authenticate_user(self, repo: UserRepository, login_data: UserLogin) -> Optional[User]:
+    async def authenticate_user(
+        self, repo: UserRepository, login_data: UserLogin
+    ) -> Optional[User]:
         try:
             user = await repo.get_by_email(login_data.email)
             if not user:
@@ -72,7 +77,9 @@ class AuthService:
             print(f"Authentication error: {e}")
             return None
 
-    async def register_user(self, repo: UserRepository, user_data: UserRegister) -> User:
+    async def register_user(
+        self, repo: UserRepository, user_data: UserRegister
+    ) -> User:
         existing = await repo.get_by_email(user_data.email)
         if existing:
             raise HTTPException(
@@ -132,7 +139,10 @@ class AuthService:
             return None
 
         # 3. Дополнительная проверка срока из БД (на случай рассинхронизации)
-        if not user.refresh_token_expires or user.refresh_token_expires < datetime.utcnow():
+        if (
+            not user.refresh_token_expires
+            or user.refresh_token_expires < datetime.utcnow()
+        ):
             await repo.revoke_refresh_token(user)
             return None
 

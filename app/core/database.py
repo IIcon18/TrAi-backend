@@ -15,19 +15,14 @@ from app.models.attachment import Attachment
 
 DATABASE_URL = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=True,
-    future=True,
-    pool_pre_ping=True
-)
+engine = create_async_engine(DATABASE_URL, echo=True, future=True, pool_pre_ping=True)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     autoflush=False,
     autocommit=False,
-    expire_on_commit=False
+    expire_on_commit=False,
 )
 
 
@@ -40,7 +35,8 @@ async def init_database():
 
         # Migration: add new columns if they don't exist and make fields nullable
         await conn.execute(
-            text("""
+            text(
+                """
             DO $$
             BEGIN
                 -- Add nickname column if not exists
@@ -130,7 +126,8 @@ async def init_database():
                     CREATE INDEX idx_attachments_entity ON attachments(entity_type, entity_id);
                 END IF;
             END $$;
-            """)
+            """
+            )
         )
 
 

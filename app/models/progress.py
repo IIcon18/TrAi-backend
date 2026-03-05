@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.core.base import Base
 
+
 class Progress(Base):
     __tablename__ = "progress"
 

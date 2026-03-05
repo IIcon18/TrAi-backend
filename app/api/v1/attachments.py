@@ -24,7 +24,10 @@ async def upload_attachment(
     """Upload a file and attach it to an entity (entity_type: 'user', 'workout', 'progress')."""
     allowed_entity_types = {"user", "workout", "progress"}
     if entity_type not in allowed_entity_types:
-        raise HTTPException(status_code=400, detail=f"entity_type должен быть одним из: {allowed_entity_types}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"entity_type должен быть одним из: {allowed_entity_types}",
+        )
 
     s3_key, content_type, size = await s3_service.upload_file(file)
 

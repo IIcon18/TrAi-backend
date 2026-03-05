@@ -14,6 +14,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 def _get_session():
     import aiobotocore.session
+
     session = aiobotocore.session.get_session()
     return session.create_client(
         "s3",

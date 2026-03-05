@@ -1,14 +1,25 @@
 import enum
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Float, Enum
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ForeignKey,
+    Boolean,
+    Float,
+    Enum,
+)
 from sqlalchemy.orm import relationship
 from app.core.base import Base
 from datetime import datetime
+
 
 class ExerciseTypeEnum(str, enum.Enum):
     bench_press = "bench_press"
     squat = "squat"
     deadlift = "deadlift"
     other = "other"
+
 
 class Workout(Base):
     __tablename__ = "workouts"
@@ -25,8 +36,13 @@ class Workout(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="workouts")
-    tests = relationship("PostWorkoutTest", back_populates="workout", cascade="all, delete-orphan")
-    exercises = relationship("Exercise", back_populates="workout", cascade="all, delete-orphan")
+    tests = relationship(
+        "PostWorkoutTest", back_populates="workout", cascade="all, delete-orphan"
+    )
+    exercises = relationship(
+        "Exercise", back_populates="workout", cascade="all, delete-orphan"
+    )
+
 
 class Exercise(Base):
     __tablename__ = "exercises"

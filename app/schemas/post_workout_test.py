@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 
+
 class PostWorkoutTestCreate(BaseModel):
     user_id: int
     workout_id: int
@@ -12,6 +13,7 @@ class PostWorkoutTestCreate(BaseModel):
     pain_discomfort: int
     performance: int
     weight_per_set: float
+
 
 class PostWorkoutTestRead(BaseModel):
     id: int

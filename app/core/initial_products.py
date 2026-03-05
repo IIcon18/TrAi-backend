@@ -14,7 +14,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 1.1,
         "carbs_per_100g": 21.3,
         "category": "крупы",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Рис белый вареный",
@@ -24,17 +24,22 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.3,
         "carbs_per_100g": 28.2,
         "category": "крупы",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Овсянка вареная",
-        "name_variants": ["овсяная каша", "овсянка", "геркулес", "овсяные хлопья вареные"],
+        "name_variants": [
+            "овсяная каша",
+            "овсянка",
+            "геркулес",
+            "овсяные хлопья вареные",
+        ],
         "calories_per_100g": 88,
         "protein_per_100g": 3.0,
         "fat_per_100g": 1.7,
         "carbs_per_100g": 15.0,
         "category": "крупы",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Макароны вареные",
@@ -44,19 +49,23 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.9,
         "carbs_per_100g": 31.0,
         "category": "крупы",
-        "verified": True
+        "verified": True,
     },
-
     # Мясо и птица
     {
         "name": "Куриная грудка",
-        "name_variants": ["курица", "куриное филе", "грудка куриная", "куриная грудка вареная"],
+        "name_variants": [
+            "курица",
+            "куриное филе",
+            "грудка куриная",
+            "куриная грудка вареная",
+        ],
         "calories_per_100g": 165,
         "protein_per_100g": 31.0,
         "fat_per_100g": 3.6,
         "carbs_per_100g": 0.0,
         "category": "мясо",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Говядина",
@@ -66,7 +75,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 16.0,
         "carbs_per_100g": 0.0,
         "category": "мясо",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Свинина",
@@ -76,7 +85,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 21.0,
         "carbs_per_100g": 0.0,
         "category": "мясо",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Индейка",
@@ -86,9 +95,8 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 4.0,
         "carbs_per_100g": 0.0,
         "category": "мясо",
-        "verified": True
+        "verified": True,
     },
-
     # Рыба
     {
         "name": "Лосось",
@@ -98,7 +106,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 13.0,
         "carbs_per_100g": 0.0,
         "category": "рыба",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Тунец",
@@ -108,7 +116,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 1.3,
         "carbs_per_100g": 0.0,
         "category": "рыба",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Треска",
@@ -118,9 +126,8 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.7,
         "carbs_per_100g": 0.0,
         "category": "рыба",
-        "verified": True
+        "verified": True,
     },
-
     # Молочные продукты
     {
         "name": "Творог 5%",
@@ -130,7 +137,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 5.0,
         "carbs_per_100g": 1.8,
         "category": "молочное",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Молоко 2.5%",
@@ -140,7 +147,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 2.5,
         "carbs_per_100g": 4.7,
         "category": "молочное",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Йогурт натуральный",
@@ -150,7 +157,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.4,
         "carbs_per_100g": 3.6,
         "category": "молочное",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Кефир 2.5%",
@@ -160,7 +167,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 2.5,
         "carbs_per_100g": 4.0,
         "category": "молочное",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Сыр российский",
@@ -170,9 +177,8 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 30.0,
         "carbs_per_100g": 0.0,
         "category": "молочное",
-        "verified": True
+        "verified": True,
     },
-
     # Яйца
     {
         "name": "Яйцо куриное",
@@ -182,9 +188,8 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 11.5,
         "carbs_per_100g": 0.7,
         "category": "яйца",
-        "verified": True
+        "verified": True,
     },
-
     # Овощи
     {
         "name": "Картофель вареный",
@@ -194,7 +199,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.1,
         "carbs_per_100g": 20.0,
         "category": "овощи",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Брокколи",
@@ -204,7 +209,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.4,
         "carbs_per_100g": 7.0,
         "category": "овощи",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Помидор",
@@ -214,7 +219,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.2,
         "carbs_per_100g": 3.9,
         "category": "овощи",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Огурец",
@@ -224,7 +229,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.1,
         "carbs_per_100g": 3.6,
         "category": "овощи",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Морковь",
@@ -234,7 +239,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.2,
         "carbs_per_100g": 9.6,
         "category": "овощи",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Капуста белокочанная",
@@ -244,7 +249,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.1,
         "carbs_per_100g": 5.8,
         "category": "овощи",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Перец болгарский",
@@ -254,9 +259,8 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.1,
         "carbs_per_100g": 5.3,
         "category": "овощи",
-        "verified": True
+        "verified": True,
     },
-
     # Фрукты
     {
         "name": "Банан",
@@ -266,7 +270,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.3,
         "carbs_per_100g": 23.0,
         "category": "фрукты",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Яблоко",
@@ -276,7 +280,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.2,
         "carbs_per_100g": 14.0,
         "category": "фрукты",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Апельсин",
@@ -286,9 +290,8 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.1,
         "carbs_per_100g": 12.0,
         "category": "фрукты",
-        "verified": True
+        "verified": True,
     },
-
     # Орехи и семена
     {
         "name": "Миндаль",
@@ -298,7 +301,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 50.0,
         "carbs_per_100g": 22.0,
         "category": "орехи",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Грецкий орех",
@@ -308,9 +311,8 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 65.0,
         "carbs_per_100g": 14.0,
         "category": "орехи",
-        "verified": True
+        "verified": True,
     },
-
     # Хлеб и выпечка
     {
         "name": "Хлеб белый",
@@ -320,7 +322,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 3.2,
         "carbs_per_100g": 50.0,
         "category": "хлеб",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Хлеб цельнозерновой",
@@ -330,9 +332,8 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 3.3,
         "carbs_per_100g": 45.0,
         "category": "хлеб",
-        "verified": True
+        "verified": True,
     },
-
     # Бобовые
     {
         "name": "Фасоль вареная",
@@ -342,7 +343,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.5,
         "carbs_per_100g": 22.0,
         "category": "бобовые",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Нут вареный",
@@ -352,7 +353,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 2.6,
         "carbs_per_100g": 27.4,
         "category": "бобовые",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Чечевица вареная",
@@ -362,9 +363,8 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 0.4,
         "carbs_per_100g": 20.0,
         "category": "бобовые",
-        "verified": True
+        "verified": True,
     },
-
     # Масла
     {
         "name": "Оливковое масло",
@@ -374,7 +374,7 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 100.0,
         "carbs_per_100g": 0.0,
         "category": "масла",
-        "verified": True
+        "verified": True,
     },
     {
         "name": "Подсолнечное масло",
@@ -384,6 +384,6 @@ INITIAL_PRODUCTS = [
         "fat_per_100g": 100.0,
         "carbs_per_100g": 0.0,
         "category": "масла",
-        "verified": True
+        "verified": True,
     },
 ]

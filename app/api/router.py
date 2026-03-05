@@ -19,4 +19,6 @@ api_router.include_router(dishes_router, prefix="/dishes", tags=["dishes"])
 api_router.include_router(workouts_router, prefix="/workouts", tags=["workouts"])
 api_router.include_router(progress_router, prefix="/progress", tags=["progress"])
 api_router.include_router(admin_router, prefix="/admin", tags=["admin"])
-api_router.include_router(attachments_router, prefix="/attachments", tags=["attachments"])
+api_router.include_router(
+    attachments_router, prefix="/attachments", tags=["attachments"]
+)

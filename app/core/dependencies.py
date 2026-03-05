@@ -18,8 +18,8 @@ def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
 
 
 async def get_current_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-        repo: UserRepository = Depends(get_user_repository),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    repo: UserRepository = Depends(get_user_repository),
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

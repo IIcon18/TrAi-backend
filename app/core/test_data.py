@@ -19,7 +19,7 @@ async def create_test_data(session: AsyncSession):
         target_weight=70.0,
         weekly_training_goal=3,
         level="beginner",
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
     )
 
     session.add(test_user)
@@ -47,7 +47,7 @@ async def create_admin_user(session: AsyncSession):
         target_weight=80.0,
         level="professional",
         weekly_training_goal=5,
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
     )
 
     session.add(admin_user)
