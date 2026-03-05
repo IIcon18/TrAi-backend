@@ -84,6 +84,9 @@ services:
       retries: 5
 
   frontend:
+    build:
+      context: ../TrAi-frontend
+      dockerfile: Dockerfile
     image: ghcr.io/iicon18/trai-frontend:latest
     container_name: trai_frontend
     restart: unless-stopped
