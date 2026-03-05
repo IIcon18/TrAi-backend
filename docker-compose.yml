@@ -21,6 +21,7 @@ services:
 
   backend:
     build: .
+    image: ghcr.io/iicon18/trai-backend:latest
     container_name: trai_backend
     restart: unless-stopped
     ports:
@@ -83,8 +84,7 @@ services:
       retries: 5
 
   frontend:
-    build:
-      context: ../TrAi-frontend
+    image: ghcr.io/iicon18/trai-frontend:latest
     container_name: trai_frontend
     restart: unless-stopped
     ports:
