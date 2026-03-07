@@ -61,6 +61,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set lowercase owner
+        id: owner
+        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -77,7 +81,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/trai-backend:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/trai-backend:latest
+            ghcr.io/${{ steps.owner.outputs.name }}/trai-backend:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.name }}/trai-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
