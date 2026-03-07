@@ -87,6 +87,8 @@ services:
     build:
       context: ../TrAi-frontend
       dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000}
     image: ghcr.io/iicon18/trai-frontend:latest
     container_name: trai_frontend
     restart: unless-stopped
