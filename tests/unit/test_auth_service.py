@@ -1,15 +1,3 @@
-"""
-Модульные тесты для AuthService.
-
-Покрываемые методы:
-- hash_password / verify_password
-- create_access_token / create_refresh_token
-- authenticate_user
-- register_user
-- rotate_refresh_token (включая обнаружение повторного использования)
-- logout_user
-"""
-
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock
@@ -24,50 +12,34 @@ from app.schemas.auth import UserLogin, UserRegister
 
 pytestmark = pytest.mark.unit
 
-
-# ---------------------------------------------------------------------------
-# hash_password / verify_password
-# ---------------------------------------------------------------------------
-
 def test_hash_password_creates_valid_bcrypt_hash():
-    """hash_password должен возвращать непустую строку, начинающуюся с $2b$."""
     hashed = auth_service.hash_password("secret")
     assert isinstance(hashed, str)
     assert hashed.startswith("$2b$")
 
 
 def test_hash_password_produces_unique_salts():
-    """Два хэша одного пароля должны отличаться (уникальные соли bcrypt)."""
     h1 = auth_service.hash_password("same_password")
     h2 = auth_service.hash_password("same_password")
     assert h1 != h2
 
 
 def test_verify_password_valid_credentials():
-    """verify_password возвращает True для верного пароля."""
     plain = "my_password"
     hashed = auth_service.hash_password(plain)
     assert auth_service.verify_password(plain, hashed) is True
 
 
 def test_verify_password_wrong_password_returns_false():
-    """verify_password возвращает False для неверного пароля."""
     hashed = auth_service.hash_password("correct_password")
     assert auth_service.verify_password("wrong_password", hashed) is False
 
 
 def test_verify_password_empty_hash_returns_false():
-    """verify_password возвращает False, если хэш пустой или None."""
     assert auth_service.verify_password("password", "") is False
     assert auth_service.verify_password("password", None) is False  # type: ignore
 
-
-# ---------------------------------------------------------------------------
-# create_access_token / create_refresh_token
-# ---------------------------------------------------------------------------
-
 def test_create_access_token_contains_sub_and_role():
-    """Access-токен должен содержать поля sub и role."""
     token = auth_service.create_access_token(
         data={"sub": "42", "role": "user"}
     )
@@ -77,7 +49,6 @@ def test_create_access_token_contains_sub_and_role():
 
 
 def test_create_access_token_expires_within_expected_delta():
-    """Access-токен должен истекать не позже чем через ACCESS_TOKEN_EXPIRE_MINUTES + 1 мин."""
     token = auth_service.create_access_token(data={"sub": "1"})
     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     exp = datetime.utcfromtimestamp(payload["exp"])
@@ -87,7 +58,6 @@ def test_create_access_token_expires_within_expected_delta():
 
 
 def test_create_access_token_custom_expiry():
-    """Access-токен с кастомным сроком действия должен его соблюдать."""
     delta = timedelta(seconds=10)
     token = auth_service.create_access_token(data={"sub": "1"}, expires_delta=delta)
     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -96,21 +66,14 @@ def test_create_access_token_custom_expiry():
 
 
 def test_create_refresh_token_is_valid_jwt():
-    """Refresh-токен должен быть валидным JWT, подписанным REFRESH_SECRET_KEY."""
     token = auth_service.create_refresh_token(data={"sub": "7"})
     payload = jwt.decode(
         token, settings.REFRESH_SECRET_KEY, algorithms=[settings.ALGORITHM]
     )
     assert payload["sub"] == "7"
 
-
-# ---------------------------------------------------------------------------
-# authenticate_user
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
 async def test_authenticate_user_success():
-    """authenticate_user возвращает пользователя при верных учётных данных."""
     plain_password = "pass123"
     user = User(
         id=1,
@@ -130,7 +93,6 @@ async def test_authenticate_user_success():
 
 @pytest.mark.asyncio
 async def test_authenticate_user_user_not_found_returns_none():
-    """authenticate_user возвращает None, если пользователь не найден."""
     repo = AsyncMock(spec=UserRepository)
     repo.get_by_email.return_value = None
 
@@ -142,7 +104,6 @@ async def test_authenticate_user_user_not_found_returns_none():
 
 @pytest.mark.asyncio
 async def test_authenticate_user_wrong_password_returns_none():
-    """authenticate_user возвращает None при неверном пароле."""
     user = User(
         id=1,
         email="u@test.com",
@@ -158,14 +119,8 @@ async def test_authenticate_user_wrong_password_returns_none():
     )
     assert result is None
 
-
-# ---------------------------------------------------------------------------
-# register_user
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
 async def test_register_user_existing_email_raises_400():
-    """register_user выбрасывает HTTP 400, если email уже существует."""
     existing = User(id=1, email="exists@test.com", nickname="x", password="hashed", role=RoleEnum.user)
     repo = AsyncMock(spec=UserRepository)
     repo.get_by_email.return_value = existing
@@ -179,7 +134,6 @@ async def test_register_user_existing_email_raises_400():
 
 @pytest.mark.asyncio
 async def test_register_user_creates_new_user():
-    """register_user создаёт и возвращает нового пользователя при уникальном email."""
     repo = AsyncMock(spec=UserRepository)
     repo.get_by_email.return_value = None
 
@@ -192,17 +146,8 @@ async def test_register_user_creates_new_user():
     assert result.email == "new@test.com"
     assert repo.create_user.called
 
-
-# ---------------------------------------------------------------------------
-# rotate_refresh_token
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
 async def test_rotate_refresh_token_reuse_detection_revokes_all_tokens():
-    """
-    Если JWT валиден, но токена нет в БД → обнаружение повторного использования.
-    Должен быть вызван revoke_refresh_token для пострадавшего пользователя.
-    """
     victim = User(id=5, email="victim@test.com", nickname="v", password="h", role=RoleEnum.user)
     presented_token = auth_service.create_refresh_token(data={"sub": "5"})
 
@@ -219,7 +164,6 @@ async def test_rotate_refresh_token_reuse_detection_revokes_all_tokens():
 
 @pytest.mark.asyncio
 async def test_rotate_refresh_token_expired_db_record_returns_none():
-    """rotate_refresh_token возвращает None, если срок действия токена в БД истёк."""
     user = User(
         id=1,
         email="u@test.com",
@@ -240,19 +184,12 @@ async def test_rotate_refresh_token_expired_db_record_returns_none():
 
 @pytest.mark.asyncio
 async def test_rotate_refresh_token_invalid_jwt_returns_none():
-    """rotate_refresh_token возвращает None при невалидной подписи JWT."""
     repo = AsyncMock(spec=UserRepository)
     result = await auth_service.rotate_refresh_token(repo, "invalid.token.value")
     assert result is None
 
-
-# ---------------------------------------------------------------------------
-# logout_user
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
 async def test_logout_user_revokes_refresh_token():
-    """logout_user должен вызвать revoke_refresh_token для корректного токена."""
     user = User(id=1, email="u@test.com", nickname="u", password="h", role=RoleEnum.user)
     token = auth_service.create_refresh_token(data={"sub": "1"})
 
@@ -267,7 +204,6 @@ async def test_logout_user_revokes_refresh_token():
 
 @pytest.mark.asyncio
 async def test_logout_user_invalid_token_returns_false():
-    """logout_user возвращает False при невалидном JWT."""
     repo = AsyncMock(spec=UserRepository)
     result = await auth_service.logout_user(repo, "bad.token")
     assert result is False

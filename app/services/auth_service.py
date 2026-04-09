@@ -19,8 +19,6 @@ class AuthService:
         self.ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
         self.REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
-    # ---------- helpers ----------
-
     def hash_password(self, password: str) -> str:
         salt = bcrypt.gensalt()
         return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
@@ -57,8 +55,6 @@ class AuthService:
 
     def _refresh_expiry(self) -> datetime:
         return datetime.utcnow() + timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
-
-    # ---------- основные операции ----------
 
     async def authenticate_user(
         self, repo: UserRepository, login_data: UserLogin
@@ -128,17 +124,14 @@ class AuthService:
         except JWTError:
             return None
 
-        # 2. Поиск по значению токена (не по user_id)
         user = await repo.get_by_refresh_token(presented_token)
 
         if user is None:
-            # Токен валидный JWT, но в БД не найден — повторное использование
             victim = await repo.get_by_id(int(user_id))
             if victim:
                 await repo.revoke_refresh_token(victim)
             return None
 
-        # 3. Дополнительная проверка срока из БД (на случай рассинхронизации)
         if (
             not user.refresh_token_expires
             or user.refresh_token_expires < datetime.utcnow()
@@ -146,7 +139,6 @@ class AuthService:
             await repo.revoke_refresh_token(user)
             return None
 
-        # 4. Выдать новую пару (старый токен перезаписывается в БД)
         access_token, new_refresh_token = await self.issue_tokens(repo, user)
         return user, access_token, new_refresh_token
 

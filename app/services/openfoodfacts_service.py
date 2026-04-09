@@ -1,15 +1,3 @@
-"""
-Сервис для работы с OpenFoodFacts API (продакшн-конфигурация)
-Документация: https://openfoodfacts.github.io/openfoodfacts-server/api/
-
-Особенности продакшн-реализации:
-- Redis-кеш с TTL 1 час (shared между воркерами, переживает рестарты)
-- Timeout 8с вместо 30с — пользователь не ждёт дольше
-- Retry с exponential backoff (1с → 2с) только при таймауте
-- Circuit breaker: после 5 ошибок подряд — 60с паузы без запросов
-- Graceful fallback при недоступности Redis (работает без кеша)
-"""
-
 import asyncio
 import hashlib
 import json
@@ -24,11 +12,11 @@ from app.core.config import settings
 
 class OpenFoodFactsService:
     # --- Конфигурация ---
-    TIMEOUT = 8.0  # секунд — максимум ожидания от пользователя
-    CACHE_TTL = 3600  # секунд — данные о БЖУ редко меняются
-    MAX_RETRIES = 2  # попыток при таймауте (с backoff)
-    FAILURE_THRESHOLD = 5  # ошибок подряд до открытия circuit breaker
-    RECOVERY_TIMEOUT = 60  # секунд паузы при открытом circuit breaker
+    TIMEOUT = 8.0
+    CACHE_TTL = 3600
+    MAX_RETRIES = 2
+    FAILURE_THRESHOLD = 5
+    RECOVERY_TIMEOUT = 60
 
     @property
     def _search_url(self) -> str:
@@ -41,10 +29,6 @@ class OpenFoodFactsService:
         self._failures: int = 0
         self._open_until: float = 0.0
         print("🌍 OpenFoodFacts Service initialized (production mode)")
-
-    # ------------------------------------------------------------------
-    # Внутренние клиенты (ленивая инициализация)
-    # ------------------------------------------------------------------
 
     async def _get_http(self) -> httpx.AsyncClient:
         if self._http is None:
@@ -64,9 +48,6 @@ class OpenFoodFactsService:
             )
         return self._redis
 
-    # ------------------------------------------------------------------
-    # Circuit breaker
-    # ------------------------------------------------------------------
 
     def _circuit_is_open(self) -> bool:
         """True — сервис временно отключён, не делаем запросы."""
@@ -88,10 +69,6 @@ class OpenFoodFactsService:
             print("✅ OpenFoodFacts circuit CLOSED — сервис восстановлен")
         self._failures = 0
 
-    # ------------------------------------------------------------------
-    # Кеш
-    # ------------------------------------------------------------------
-
     def _cache_key(self, query: str, language: str) -> str:
         digest = hashlib.md5(f"{query.lower().strip()}:{language}".encode()).hexdigest()
         return f"off:search:{digest}"
@@ -112,10 +89,6 @@ class OpenFoodFactsService:
             await redis.setex(key, self.CACHE_TTL, json.dumps(data, ensure_ascii=False))
         except Exception:
             pass  # Redis недоступен — просто не кешируем
-
-    # ------------------------------------------------------------------
-    # Нормализация ответа OpenFoodFacts
-    # ------------------------------------------------------------------
 
     def _normalize_nutriments(self, product: Dict) -> Optional[Dict[str, float]]:
         """Извлечь БЖУ из продукта. Приоритет: данные на 100г."""
@@ -166,20 +139,13 @@ class OpenFoodFactsService:
             )
         return results
 
-    # ------------------------------------------------------------------
-    # Публичные методы
-    # ------------------------------------------------------------------
-
     async def search_products(
         self,
         query: str,
         language: str = "ru",
         limit: int = 20,
     ) -> List[Dict]:
-        """
-        Поиск продуктов в OpenFoodFacts с Redis-кешем и circuit breaker.
-        Всегда возвращает список (пустой при ошибке/таймауте).
-        """
+
         # Circuit breaker — быстрый ответ без ожидания
         if self._circuit_is_open():
             print("⚡ OpenFoodFacts circuit open — пропускаем запрос")
@@ -292,6 +258,4 @@ class OpenFoodFactsService:
             await self._redis.aclose()
             self._redis = None
 
-
-# Singleton instance
 openfoodfacts_service = OpenFoodFactsService()

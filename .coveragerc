@@ -1,0 +1,15 @@
+[run]
+omit =
+    app/main.py
+    app/services/ai_service.py
+    app/core/seed_products.py
+    app/core/test_data.py
+    app/core/initial_products.py
+
+[report]
+omit =
+    app/main.py
+    app/services/ai_service.py
+    app/core/seed_products.py
+    app/core/test_data.py
+    app/core/initial_products.py

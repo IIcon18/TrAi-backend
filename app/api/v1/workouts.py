@@ -33,12 +33,6 @@ from app.models.progress import Progress
 
 router = APIRouter(tags=["workouts"])
 
-
-# ==========================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# ==========================
-
-
 def get_quick_actions() -> List[QuickAction]:
     return [
         QuickAction(name="Открыть статистику", icon="📊", route="/progress"),
@@ -138,7 +132,6 @@ async def update_progress_on_workout_completion(
             hour=23, minute=59, second=59, microsecond=999999
         )
 
-        # Find existing Progress record for today
         result = await db.execute(
             select(Progress).where(
                 Progress.user_id == user_id,
@@ -149,12 +142,10 @@ async def update_progress_on_workout_completion(
         progress_record = result.scalar_one_or_none()
 
         if progress_record:
-            # Update existing record
             progress_record.completed_workouts += 1
             if workout.total_weight_lifted:
                 progress_record.total_lifted_weight += workout.total_weight_lifted
         else:
-            # Create new Progress record for today
             progress_record = Progress(
                 user_id=user_id,
                 completed_workouts=1,
@@ -167,12 +158,6 @@ async def update_progress_on_workout_completion(
 
     except Exception as e:
         await db.rollback()
-
-
-# ==========================
-# ENDPOINTS
-# ==========================
-
 
 @router.get("/page")
 async def get_workout_page(
@@ -234,7 +219,6 @@ async def get_ai_usage(
         return {"uses": 0, "limit": 0, "unlimited": True}
 
     now = datetime.utcnow()
-    # Сбросить счётчик если прошёл месяц
     if current_user.ai_workout_reset_date is None or (
         now.year > current_user.ai_workout_reset_date.year
         or now.month > current_user.ai_workout_reset_date.month
@@ -258,12 +242,10 @@ async def generate_ai_workout(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Проверка лимита AI-генераций для бесплатных пользователей (3 в месяц)
     AI_WORKOUT_MONTHLY_LIMIT = 3
 
     if current_user.role == RoleEnum.user:
         now = datetime.utcnow()
-        # Сбросить счётчик если прошёл месяц
         if current_user.ai_workout_reset_date is None or (
             now.year > current_user.ai_workout_reset_date.year
             or now.month > current_user.ai_workout_reset_date.month
@@ -279,8 +261,6 @@ async def generate_ai_workout(
                 detail=f"Лимит AI-генераций исчерпан ({AI_WORKOUT_MONTHLY_LIMIT}/мес). Перейдите на Pro для безлимитного доступа.",
             )
 
-    # Небольшая ручная валидация/нормализация группы мышц,
-    # чтобы поддержать старые значения с фронта и избежать 422 от Pydantic
     raw_group = request.muscle_group
     aliases = {
         "upper_push": "upper_body_push",
@@ -301,7 +281,6 @@ async def generate_ai_workout(
             status_code=400, detail=f"Недопустимая группа мышц: {raw_group}"
         )
 
-    # Получаем реальную цель пользователя
     user_goal = "general_fitness"
     if current_user.current_goal_id:
         from app.models.goal import Goal
@@ -313,7 +292,6 @@ async def generate_ai_workout(
         if goal and goal.type:
             user_goal = goal.type.value
 
-    # Загружаем историю тренировок для разнообразия
     history_result = await db.execute(
         select(Workout)
         .where(
@@ -370,7 +348,6 @@ async def generate_ai_workout(
     workout = Workout(
         user_id=current_user.id,
         name=ai_data["name"],
-        # сохраняем уже нормализованную группу мышц
         muscle_group=normalized_group,
         scheduled_at=datetime.utcnow(),
         completed=False,
@@ -379,7 +356,6 @@ async def generate_ai_workout(
     )
     db.add(workout)
 
-    # Инкрементировать счётчик AI-генераций для бесплатных пользователей
     if current_user.role == RoleEnum.user:
         current_user.ai_workout_uses += 1
         if current_user.ai_workout_reset_date is None:
@@ -390,7 +366,6 @@ async def generate_ai_workout(
 
     exercises_list = []
     for ex in ai_data["exercises"]:
-        # Используем вес из AI если указан, иначе 0
         weight = ex.get("weight", 0)
 
         exercise = Exercise(
@@ -444,7 +419,6 @@ async def create_manual_workout(
     """
     Создать тренировку вручную (не через AI)
     """
-    # Валидация muscle_group
     muscle_group = request.get("muscle_group", "upper_body_push")
     allowed_groups = {
         "upper_body_push",
@@ -457,14 +431,12 @@ async def create_manual_workout(
             status_code=400, detail=f"Недопустимая группа мышц: {muscle_group}"
         )
 
-    # Валидация difficulty
     difficulty = request.get("difficulty", "medium")
     if difficulty not in {"easy", "medium", "hard"}:
         raise HTTPException(
             status_code=400, detail=f"Недопустимая сложность: {difficulty}"
         )
 
-    # Создаем тренировку
     workout = Workout(
         user_id=current_user.id,
         name=request.get("name", "Custom Workout"),
@@ -478,7 +450,6 @@ async def create_manual_workout(
     await db.commit()
     await db.refresh(workout)
 
-    # Добавляем упражнения
     exercises_list = []
     for ex_data in request.get("exercises", []):
         exercise = Exercise(
@@ -530,7 +501,6 @@ async def complete_workout(
     """
     Mark a workout as completed and update Progress tracking.
     """
-    # Get the workout
     result = await db.execute(
         select(Workout).where(
             Workout.id == workout_id, Workout.user_id == current_user.id
@@ -544,7 +514,6 @@ async def complete_workout(
     if workout.completed:
         raise HTTPException(status_code=400, detail="Тренировка уже завершена")
 
-    # Calculate total weight lifted from exercises
     exercises_result = await db.execute(
         select(Exercise).where(Exercise.workout_id == workout.id)
     )
@@ -553,11 +522,9 @@ async def complete_workout(
     total_weight = sum(ex.sets * ex.reps * ex.weight for ex in exercises)
     workout.total_weight_lifted = total_weight
 
-    # Mark as completed
     workout.completed = True
     await db.commit()
 
-    # Update Progress record
     await update_progress_on_workout_completion(db, current_user.id, workout)
 
     return {
@@ -566,12 +533,6 @@ async def complete_workout(
         "completed": workout.completed,
         "total_weight_lifted": total_weight,
     }
-
-
-# ==========================
-# СПИСОК И ФИЛЬТРАЦИЯ (Lab 3)
-# ==========================
-
 
 @router.get("/list", response_model=WorkoutListResponse)
 async def list_workouts(
@@ -609,16 +570,13 @@ async def list_workouts(
             Workout.scheduled_at <= datetime.fromisoformat(date_to + "T23:59:59")
         )
 
-    # Count total
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar_one()
 
-    # Sorting
     sort_col = getattr(Workout, sort_by)
     order_fn = asc if sort_order == "asc" else desc
     query = query.order_by(order_fn(sort_col))
 
-    # Pagination
     offset = (page - 1) * page_size
     query = query.offset(offset).limit(page_size)
 
